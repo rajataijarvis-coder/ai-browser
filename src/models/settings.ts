@@ -113,20 +113,42 @@ export interface ChatSettings {
   historyRetentionDays: number; // 1 - 365
 }
 
-export interface AgentSettings {
-  mcpTools: {
-    [toolName: string]: {
-      enabled: boolean;
-      config?: Record<string, any>;
-    };
+// MCP service definition (stored globally)
+export interface McpServiceConfig {
+  id: string;
+  name: string;
+  url: string;
+  tools: McpToolInfo[];
+}
+
+export interface McpToolInfo {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+}
+
+// Per-agent MCP configuration
+export interface AgentMcpConfig {
+  [serviceId: string]: {
+    enabled: boolean;
+    tools: { [toolName: string]: { enabled: boolean } };
   };
+}
+
+export interface McpSettings {
+  services: McpServiceConfig[];
+}
+
+export interface AgentSettings {
   browserAgent: {
     enabled: boolean;
     customPrompt?: string;
+    mcpServices: AgentMcpConfig;
   };
   fileAgent: {
     enabled: boolean;
     customPrompt?: string;
+    mcpServices: AgentMcpConfig;
   };
 }
 
@@ -159,6 +181,7 @@ export interface AppSettings {
   general: GeneralSettings;
   chat: ChatSettings;
   agent: AgentSettings;
+  mcp: McpSettings;
   ui: UISettings;
   network: NetworkSettings;
 }

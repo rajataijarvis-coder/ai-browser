@@ -7,7 +7,8 @@ const { Text, Paragraph } = Typography;
 
 interface FileAgentConfig {
   enabled: boolean;
-  customPrompt: string;
+  customPrompt?: string;
+  [key: string]: unknown;
 }
 
 interface FileAgentTabProps {

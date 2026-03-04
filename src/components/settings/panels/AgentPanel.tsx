@@ -170,19 +170,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
         )
       );
 
-      // Save to backend immediately (MCP tools need real-time effect)
-      await window.api.setMcpToolEnabled(toolName, enabled);
-
-      // Also update the settings object for export/import consistency
-      if (settings && onSettingsChange) {
-        onSettingsChange({
-          ...settings,
-          mcpTools: {
-            ...settings.mcpTools,
-            [toolName]: { ...settings.mcpTools[toolName], enabled }
-          }
-        });
-      }
+      // TODO: Will be replaced by per-agent MCP config in McpPanel
     } catch (error: any) {
       message.error('Failed to update tool: ' + error.message);
     }

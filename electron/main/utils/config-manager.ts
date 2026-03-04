@@ -203,19 +203,7 @@ export class ConfigManager {
     SettingsManager.getInstance().saveAgentConfig(config);
   }
 
-  public getMcpToolConfig(toolName: string) {
-    return SettingsManager.getInstance().getMcpToolConfig(toolName);
-  }
-
-  public setMcpToolConfig(toolName: string, config: { enabled: boolean; config?: Record<string, any> }): void {
-    SettingsManager.getInstance().setMcpToolConfig(toolName, config);
-  }
-
-  public getAllMcpToolsConfig(availableTools: string[]) {
-    return SettingsManager.getInstance().getAllMcpToolsConfig(availableTools);
-  }
-
-  public getEnabledMcpTools(availableTools: string[]): string[] {
-    return SettingsManager.getInstance().getEnabledMcpTools(availableTools);
+  public getMcpSettings() {
+    return SettingsManager.getInstance().getMcpSettings();
   }
 }

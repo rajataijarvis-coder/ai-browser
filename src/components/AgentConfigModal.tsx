@@ -23,9 +23,8 @@ export default function AgentConfigModal({ visible, onClose }: AgentConfigModalP
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<AgentConfig>({
-    browserAgent: { enabled: true, customPrompt: '' },
-    fileAgent: { enabled: true, customPrompt: '' },
-    mcpTools: {}
+    browserAgent: { enabled: true, customPrompt: '', mcpServices: {} },
+    fileAgent: { enabled: true, customPrompt: '', mcpServices: {} },
   });
   const [mcpTools, setMcpTools] = useState<McpToolSchema[]>([]);
 
@@ -70,13 +69,7 @@ export default function AgentConfigModal({ visible, onClose }: AgentConfigModalP
   const handleToolToggle = async (toolName: string, enabled: boolean) => {
     try {
       // Update local state
-      setConfig(prev => ({
-        ...prev,
-        mcpTools: {
-          ...prev.mcpTools,
-          [toolName]: { ...prev.mcpTools[toolName], enabled }
-        }
-      }));
+      setConfig(prev => ({ ...prev }));
 
       // Update MCP tools list
       setMcpTools(prev =>

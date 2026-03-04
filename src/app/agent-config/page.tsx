@@ -23,9 +23,8 @@ export default function AgentConfigPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<AgentConfig>({
-    browserAgent: { enabled: true, customPrompt: '' },
-    fileAgent: { enabled: true, customPrompt: '' },
-    mcpTools: {}
+    browserAgent: { enabled: true, customPrompt: '', mcpServices: {} },
+    fileAgent: { enabled: true, customPrompt: '', mcpServices: {} },
   });
   const [mcpTools, setMcpTools] = useState<McpToolSchema[]>([]);
 
@@ -67,13 +66,7 @@ export default function AgentConfigPage() {
   const handleToolToggle = async (toolName: string, enabled: boolean) => {
     try {
       // Update local state
-      setConfig(prev => ({
-        ...prev,
-        mcpTools: {
-          ...prev.mcpTools,
-          [toolName]: { ...prev.mcpTools[toolName], enabled }
-        }
-      }));
+      setConfig(prev => ({ ...prev }));
 
       // Update MCP tools list
       setMcpTools(prev =>
@@ -113,7 +106,7 @@ export default function AgentConfigPage() {
           <BrowserAgentTab
             config={config.browserAgent}
             onConfigChange={(browserAgent) =>
-              setConfig(prev => ({ ...prev, browserAgent }))
+              setConfig(prev => ({ ...prev, browserAgent: { ...prev.browserAgent, ...browserAgent } }))
             }
           />
         </TabPane>
@@ -123,7 +116,7 @@ export default function AgentConfigPage() {
           <FileAgentTab
             config={config.fileAgent}
             onConfigChange={(fileAgent) =>
-              setConfig(prev => ({ ...prev, fileAgent }))
+              setConfig(prev => ({ ...prev, fileAgent: { ...prev.fileAgent, ...fileAgent } }))
             }
           />
         </TabPane>
