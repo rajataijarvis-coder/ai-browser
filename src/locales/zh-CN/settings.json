@@ -186,6 +186,9 @@
     },
     "tool_name": "工具名称",
     "tool_enabled": "已启用",
+    "mcp_services_title": "MCP 服务",
+    "mcp_services_desc": "选择此代理可用的 MCP 服务和工具",
+    "no_mcp_services": "暂无 MCP 服务，请先在 MCP 面板中添加服务",
     "save_changes": "保存更改",
     "changes_saved": "更改保存成功",
     "load_failed": "加载代理配置失败"

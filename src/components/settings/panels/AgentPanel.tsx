@@ -1,190 +1,278 @@
 /**
  * Agent configuration panel
- * INPUT: Agent config from Electron IPC
- * OUTPUT: Updated agent configurations
+ * INPUT: Agent config + global MCP services
+ * OUTPUT: Updated agent configurations with per-agent MCP selection
  * POSITION: Fourth tab in settings window for agent behavior management
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   RobotOutlined,
   GlobalOutlined,
   FolderOutlined,
-  ToolOutlined
+  ApiOutlined
 } from '@ant-design/icons';
-import { Typography, Switch, Input, Spin, App } from 'antd';
+import { Typography, Switch, Input, Spin } from 'antd';
 import { useTranslation } from 'react-i18next';
-import type { AgentConfig, McpToolSchema } from '@/types';
+import type { AgentConfig } from '@/types';
+import type { McpServiceConfig, AgentMcpConfig } from '@/models/settings';
 import { SelectableCard } from '@/components/ui';
 
 const { Title, Paragraph, Text } = Typography;
 const { TextArea } = Input;
 
-type AgentTab = 'browser' | 'file' | 'tools';
+type AgentTab = 'browser' | 'file';
 
-interface TabItemProps {
+/** Tab navigation item */
+const TabItem: React.FC<{
   label: string;
   icon: React.ReactNode;
   isSelected: boolean;
   onClick: () => void;
-}
+}> = ({ label, icon, isSelected, onClick }) => (
+  <SelectableCard
+    selected={isSelected}
+    onClick={onClick}
+    hoverScale={false}
+    className="w-full mb-2 px-4 py-3"
+  >
+    <div className="flex items-center gap-3 text-left">
+      <span className="text-lg text-text-12 dark:text-text-12-dark">{icon}</span>
+      <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-200">{label}</span>
+    </div>
+  </SelectableCard>
+);
 
-/**
- * Tab navigation item
- */
-const TabItem: React.FC<TabItemProps> = ({
-  label,
-  icon,
-  isSelected,
-  onClick
-}) => {
-  return (
-    <SelectableCard
-      selected={isSelected}
-      onClick={onClick}
-      hoverScale={false}
-      className="w-full mb-2 px-4 py-3"
-    >
-      <div className="flex items-center gap-3 text-left">
-        <span className="text-lg text-text-12 dark:text-text-12-dark">{icon}</span>
-        <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-200">{label}</span>
+/** Per-agent MCP service selector */
+const McpServiceSelector: React.FC<{
+  services: McpServiceConfig[];
+  agentMcpConfig: AgentMcpConfig;
+  onConfigChange: (config: AgentMcpConfig) => void;
+  disabled?: boolean;
+}> = ({ services, agentMcpConfig, onConfigChange, disabled }) => {
+  const { t } = useTranslation('settings');
+
+  if (services.length === 0) {
+    return (
+      <div className="text-center py-6 text-text-12 dark:text-text-12-dark">
+        <div className="text-2xl mb-2">🔌</div>
+        <div className="text-sm">{t('agent.no_mcp_services')}</div>
       </div>
-    </SelectableCard>
-  );
-};
+    );
+  }
 
-/**
- * MCP Tool card component
- */
-interface ToolCardProps {
-  tool: McpToolSchema;
-  onToggle: (enabled: boolean) => void;
-}
+  /** Toggle service enabled state */
+  const handleServiceToggle = (serviceId: string, enabled: boolean) => {
+    const current = agentMcpConfig[serviceId];
+    onConfigChange({
+      ...agentMcpConfig,
+      [serviceId]: {
+        enabled,
+        tools: current?.tools ?? {}
+      }
+    });
+  };
 
-const ToolCard: React.FC<ToolCardProps> = ({ tool, onToggle }) => {
+  /** Toggle individual tool within a service */
+  const handleToolToggle = (serviceId: string, toolName: string, enabled: boolean) => {
+    const current = agentMcpConfig[serviceId];
+    if (!current) return;
+    onConfigChange({
+      ...agentMcpConfig,
+      [serviceId]: {
+        ...current,
+        tools: { ...current.tools, [toolName]: { enabled } }
+      }
+    });
+  };
+
+  /** Check if a tool is enabled */
+  const isToolEnabled = (serviceId: string, toolName: string): boolean => {
+    return agentMcpConfig[serviceId]?.tools[toolName]?.enabled ?? true;
+  };
+
   return (
-    <SelectableCard
-      selected={tool.enabled}
-      hoverScale={false}
-      className="p-4 mb-3"
-    >
-      <div className="flex items-start justify-between">
-        <div className="flex-1 pr-4">
-          <div className="flex items-center gap-3 mb-2">
-            <Text className="!text-text-01 dark:!text-text-01-dark font-medium">{tool.name}</Text>
+    <div className="space-y-3">
+      {services.map((service) => {
+        const serviceConfig = agentMcpConfig[service.id];
+        const isEnabled = serviceConfig?.enabled ?? false;
+
+        return (
+          <div
+            key={service.id}
+            className="rounded-lg border border-gray-200 dark:border-white/10 overflow-hidden"
+          >
+            {/* Service header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-white/5">
+              <div className="flex items-center gap-2 min-w-0">
+                <ApiOutlined className="text-text-12 dark:text-text-12-dark flex-shrink-0" />
+                <Text className="!text-text-01 dark:!text-text-01-dark font-medium text-sm truncate">
+                  {service.name}
+                </Text>
+                {service.tools.length > 0 && (
+                  <span className="text-xs text-text-12 dark:text-text-12-dark flex-shrink-0">
+                    ({service.tools.length})
+                  </span>
+                )}
+              </div>
+              <Switch
+                checked={isEnabled}
+                onChange={(checked) => handleServiceToggle(service.id, checked)}
+                size="small"
+                disabled={disabled}
+              />
+            </div>
+
+            {/* Tool list (visible when service is enabled and has tools) */}
+            {isEnabled && service.tools.length > 0 && (
+              <div className="border-t border-gray-100 dark:border-white/5 px-4 py-2 space-y-1">
+                {service.tools.map((tool) => (
+                  <div
+                    key={tool.name}
+                    className="flex items-center justify-between py-1.5"
+                  >
+                    <div className="min-w-0 flex-1 pr-3">
+                      <div className="text-sm text-text-01 dark:text-text-01-dark truncate">
+                        {tool.name}
+                      </div>
+                      {tool.description && (
+                        <div className="text-xs text-text-12 dark:text-text-12-dark truncate">
+                          {tool.description}
+                        </div>
+                      )}
+                    </div>
+                    <Switch
+                      checked={isToolEnabled(service.id, tool.name)}
+                      onChange={(checked) => handleToolToggle(service.id, tool.name, checked)}
+                      size="small"
+                      disabled={disabled}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <Text className="!text-text-12 dark:text-text-12-dark text-sm block">{tool.description}</Text>
-        </div>
-        <Switch
-          checked={tool.enabled}
-          onChange={onToggle}
-          size="small"
-          className="cursor-pointer"
-        />
-      </div>
-    </SelectableCard>
+        );
+      })}
+    </div>
   );
 };
 
 interface AgentPanelProps {
   settings?: AgentConfig;
   onSettingsChange?: (settings: AgentConfig) => void;
+  mcpServices?: McpServiceConfig[];
 }
 
-/**
- * Agent configuration panel
- */
+/** Agent configuration panel */
 export const AgentPanel: React.FC<AgentPanelProps> = ({
   settings,
-  onSettingsChange
+  onSettingsChange,
+  mcpServices = []
 }) => {
   const { t } = useTranslation('settings');
-  const { message } = App.useApp();
   const [activeTab, setActiveTab] = useState<AgentTab>('browser');
-  const [loading, setLoading] = useState(false);
-  const [mcpTools, setMcpTools] = useState<McpToolSchema[]>([]);
-
-  // Load MCP tools on mount
-  useEffect(() => {
-    loadMcpTools();
-  }, []);
-
-  const loadMcpTools = async () => {
-    setLoading(true);
-    try {
-      const toolsResult = await window.api.getMcpTools();
-      if (toolsResult?.success && toolsResult.data?.tools) {
-        setMcpTools(toolsResult.data.tools);
-      }
-    } catch (error) {
-      console.error('Failed to load MCP tools:', error);
-      message.error(t('agent.load_failed'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle browser agent toggle
-  const handleBrowserAgentToggle = (enabled: boolean) => {
-    if (!settings || !onSettingsChange) return;
-    onSettingsChange({
-      ...settings,
-      browserAgent: { ...settings.browserAgent, enabled }
-    });
-  };
-
-  // Handle browser agent prompt change
-  const handleBrowserPromptChange = (value: string) => {
-    if (!settings || !onSettingsChange) return;
-    onSettingsChange({
-      ...settings,
-      browserAgent: { ...settings.browserAgent, customPrompt: value }
-    });
-  };
-
-  // Handle file agent toggle
-  const handleFileAgentToggle = (enabled: boolean) => {
-    if (!settings || !onSettingsChange) return;
-    onSettingsChange({
-      ...settings,
-      fileAgent: { ...settings.fileAgent, enabled }
-    });
-  };
-
-  // Handle file agent prompt change
-  const handleFilePromptChange = (value: string) => {
-    if (!settings || !onSettingsChange) return;
-    onSettingsChange({
-      ...settings,
-      fileAgent: { ...settings.fileAgent, customPrompt: value }
-    });
-  };
-
-  // Handle tool toggle - immediate save for MCP tools
-  const handleToolToggle = async (toolName: string, enabled: boolean) => {
-    try {
-      // Update tools list UI
-      setMcpTools(prev =>
-        prev.map(tool =>
-          tool.name === toolName ? { ...tool, enabled } : tool
-        )
-      );
-
-      // TODO: Will be replaced by per-agent MCP config in McpPanel
-    } catch (error: any) {
-      message.error('Failed to update tool: ' + error.message);
-    }
-  };
 
   const tabs: { id: AgentTab; labelKey: string; icon: React.ReactNode }[] = [
     { id: 'browser', labelKey: 'agent.browser_agent', icon: <GlobalOutlined /> },
-    { id: 'file', labelKey: 'agent.file_agent', icon: <FolderOutlined /> },
-    { id: 'tools', labelKey: 'agent.mcp_tools', icon: <ToolOutlined /> }
+    { id: 'file', labelKey: 'agent.file_agent', icon: <FolderOutlined /> }
   ];
 
-  // Render content based on active tab
+  /** Update a specific agent's settings */
+  const updateAgent = (
+    agentKey: 'browserAgent' | 'fileAgent',
+    updates: Partial<AgentConfig['browserAgent']>
+  ) => {
+    if (!settings || !onSettingsChange) return;
+    onSettingsChange({
+      ...settings,
+      [agentKey]: { ...settings[agentKey], ...updates }
+    });
+  };
+
+  /** Render agent tab content */
+  const renderAgentContent = (
+    agentKey: 'browserAgent' | 'fileAgent',
+    behaviorKey: 'browser' | 'file'
+  ) => {
+    if (!settings) return null;
+
+    const agentSettings = settings[agentKey];
+    const isEnabled = agentSettings?.enabled ?? true;
+    const behaviorKeys = behaviorKey === 'browser'
+      ? ['analyze', 'commands', 'popups', 'user_help', 'scroll']
+      : ['tasks', 'paths', 'naming', 'visualization', 'charts'];
+
+    return (
+      <div className="space-y-6">
+        {/* Enable toggle */}
+        <div className="flex items-center justify-between">
+          <div>
+            <Text className="!text-text-01 dark:!text-text-01-dark font-medium block">
+              {t('agent.enable_agent')}
+            </Text>
+            <Text className="!text-text-12 dark:text-text-12-dark text-sm">
+              {t(`agent.${behaviorKey}_agent_behavior`)}
+            </Text>
+          </div>
+          <Switch
+            checked={isEnabled}
+            onChange={(enabled) => updateAgent(agentKey, { enabled })}
+          />
+        </div>
+
+        {/* Default behaviors */}
+        <div className="p-4 bg-white dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10">
+          <Text className="!text-text-12 dark:!text-text-12-dark font-medium block mb-3">
+            {t('agent.default_behavior')}
+          </Text>
+          <div className="text-sm text-text-12 dark:text-text-12-dark space-y-1.5">
+            {behaviorKeys.map((key) => (
+              <div key={key}>• {t(`agent.${behaviorKey}_behaviors.${key}`)}</div>
+            ))}
+          </div>
+        </div>
+
+        {/* Custom prompt */}
+        <div>
+          <Text className="!text-text-01 dark:!text-text-01-dark font-medium block mb-2">
+            {t('agent.custom_prompt')}
+          </Text>
+          <Text className="!text-text-12 dark:text-text-12-dark text-sm block mb-3">
+            {t(`agent.custom_prompt_desc_${behaviorKey}`)}
+          </Text>
+          <TextArea
+            value={agentSettings?.customPrompt ?? ''}
+            onChange={(e) => updateAgent(agentKey, { customPrompt: e.target.value })}
+            placeholder={t('agent.custom_prompt_placeholder')}
+            rows={6}
+            disabled={!isEnabled}
+            className="bg-white dark:bg-white/5 border-gray-200 dark:border-white/10 text-text-01 dark:text-text-01-dark placeholder-gray-500"
+          />
+        </div>
+
+        {/* Per-agent MCP services */}
+        <div className="pt-4 border-t border-gray-200 dark:border-white/10">
+          <Text className="!text-text-01 dark:!text-text-01-dark font-medium text-base block mb-1">
+            {t('agent.mcp_services_title')}
+          </Text>
+          <Text className="!text-text-12 dark:text-text-12-dark text-sm block mb-4">
+            {t('agent.mcp_services_desc')}
+          </Text>
+          <McpServiceSelector
+            services={mcpServices}
+            agentMcpConfig={agentSettings?.mcpServices ?? {}}
+            onConfigChange={(mcpConfig) => updateAgent(agentKey, { mcpServices: mcpConfig })}
+            disabled={!isEnabled}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  /** Render content based on active tab */
   const renderContent = () => {
-    if (loading || !settings) {
+    if (!settings) {
       return (
         <div className="flex items-center justify-center h-full">
           <Spin size="large" />
@@ -194,128 +282,9 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
 
     switch (activeTab) {
       case 'browser':
-        return (
-          <div className="space-y-6">
-            {/* Enable toggle */}
-            <div className="flex items-center justify-between">
-              <div>
-                <Text className="!text-text-01 dark:!text-text-01-dark font-medium block">{t('agent.enable_agent')}</Text>
-                <Text className="!text-text-12 dark:text-text-12-dark text-sm">
-                  {t('agent.browser_agent_behavior')}
-                </Text>
-              </div>
-              <Switch
-                checked={settings.browserAgent?.enabled ?? true}
-                onChange={handleBrowserAgentToggle}
-              />
-            </div>
-
-            {/* Default behaviors */}
-            <div className="p-4 bg-white dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10">
-              <Text className="!text-text-12 dark:!text-text-12-dark font-medium block mb-3">{t('agent.default_behavior')}</Text>
-              <div className="text-sm text-text-12 dark:text-text-12-dark space-y-1.5">
-                <div>• {t('agent.browser_behaviors.analyze')}</div>
-                <div>• {t('agent.browser_behaviors.commands')}</div>
-                <div>• {t('agent.browser_behaviors.popups')}</div>
-                <div>• {t('agent.browser_behaviors.user_help')}</div>
-                <div>• {t('agent.browser_behaviors.scroll')}</div>
-              </div>
-            </div>
-
-            {/* Custom prompt */}
-            <div>
-              <Text className="!text-text-01 dark:!text-text-01-dark font-medium block mb-2">{t('agent.custom_prompt')}</Text>
-              <Text className="!text-text-12 dark:text-text-12-dark text-sm block mb-3">
-                {t('agent.custom_prompt_desc_browser')}
-              </Text>
-              <TextArea
-                value={settings.browserAgent?.customPrompt ?? ''}
-                onChange={(e) => handleBrowserPromptChange(e.target.value)}
-                placeholder={t('agent.custom_prompt_placeholder')}
-                rows={6}
-                disabled={!(settings.browserAgent?.enabled ?? true)}
-                className="bg-white dark:bg-white/5 border-gray-200 dark:border-white/10 text-text-01 dark:text-text-01-darkplaceholder-gray-500"
-              />
-            </div>
-          </div>
-        );
-
+        return renderAgentContent('browserAgent', 'browser');
       case 'file':
-        return (
-          <div className="space-y-6">
-            {/* Enable toggle */}
-            <div className="flex items-center justify-between">
-              <div>
-                <Text className="!text-text-01 dark:!text-text-01-dark font-medium block">{t('agent.enable_agent')}</Text>
-                <Text className="!text-text-12 dark:text-text-12-dark text-sm">
-                  {t('agent.file_agent_behavior')}
-                </Text>
-              </div>
-              <Switch
-                checked={settings.fileAgent?.enabled ?? true}
-                onChange={handleFileAgentToggle}
-              />
-            </div>
-
-            {/* Default behaviors */}
-            <div className="p-4 bg-white dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10">
-              <Text className="!text-text-12 dark:!text-text-12-dark font-medium block mb-3">{t('agent.default_behavior')}</Text>
-              <div className="text-sm text-text-12 dark:text-text-12-dark space-y-1.5">
-                <div>• {t('agent.file_behaviors.tasks')}</div>
-                <div>• {t('agent.file_behaviors.paths')}</div>
-                <div>• {t('agent.file_behaviors.naming')}</div>
-                <div>• {t('agent.file_behaviors.visualization')}</div>
-                <div>• {t('agent.file_behaviors.charts')}</div>
-              </div>
-            </div>
-
-            {/* Custom prompt */}
-            <div>
-              <Text className="!text-text-01 dark:!text-text-01-dark font-medium block mb-2">{t('agent.custom_prompt')}</Text>
-              <Text className="!text-text-12 dark:text-text-12-dark text-sm block mb-3">
-                {t('agent.custom_prompt_desc_file')}
-              </Text>
-              <TextArea
-                value={settings.fileAgent?.customPrompt ?? ''}
-                onChange={(e) => handleFilePromptChange(e.target.value)}
-                placeholder={t('agent.custom_prompt_placeholder')}
-                rows={6}
-                disabled={!(settings.fileAgent?.enabled ?? true)}
-                className="bg-white dark:bg-white/5 border-gray-200 dark:border-white/10 text-text-01 dark:text-text-01-darkplaceholder-gray-500"
-              />
-            </div>
-          </div>
-        );
-
-      case 'tools':
-        return (
-          <div className="space-y-4">
-            <div className="mb-6">
-              <Text className="!text-text-12 dark:text-text-12-dark text-sm">
-                {t('agent.mcp_tools_desc')}
-              </Text>
-            </div>
-
-            {mcpTools.length === 0 ? (
-              <div className="text-center py-12 text-text-12 dark:text-text-12-dark">
-                <div className="text-4xl mb-3">🔧</div>
-                <div className="font-medium mb-1">{t('agent.mcp_tools_empty.title')}</div>
-                <div className="text-sm">{t('agent.mcp_tools_empty.desc')}</div>
-              </div>
-            ) : (
-              <div className="max-h-[400px] overflow-y-auto pr-2">
-                {mcpTools.map((tool) => (
-                  <ToolCard
-                    key={tool.name}
-                    tool={tool}
-                    onToggle={(enabled) => handleToolToggle(tool.name, enabled)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        );
-
+        return renderAgentContent('fileAgent', 'file');
       default:
         return null;
     }
