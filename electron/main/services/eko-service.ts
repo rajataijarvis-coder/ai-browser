@@ -1,4 +1,4 @@
-import { Eko, SimpleSseMcpClient, type LLMs, type StreamCallbackMessage, type AgentContext } from "@jarvis-agent/core";
+import { Eko, SimpleSseMcpClient, type IMcpClient, type LLMs, type StreamCallbackMessage, type AgentContext } from "@jarvis-agent/core";
 import { BrowserAgent, FileAgent } from "@jarvis-agent/electron";
 import type { EkoResult } from "@jarvis-agent/core/types";
 import { BrowserWindow, app } from "electron";
@@ -8,13 +8,13 @@ import { randomUUID } from "node:crypto";
 import { ConfigManager } from "../utils/config-manager";
 import { SettingsManager } from "../utils/settings-manager";
 import { TabManager } from "./tab-manager";
+import type { AgentMcpConfig, McpServiceConfig } from "../models/settings";
 import type { HumanRequestMessage, HumanResponseMessage, HumanInteractionContext } from "../../../src/models/human-interaction";
 
 export class EkoService {
   private eko: Eko | null = null;
   private mainWindow: BrowserWindow;
   private tabManager: TabManager;
-  private mcpClient!: SimpleSseMcpClient;
   private browserAgent: BrowserAgent | null = null;
 
   // Store pending human interaction requests
@@ -157,6 +157,18 @@ export class EkoService {
   }
 
   /**
+   * Build MCP clients for a specific agent based on its config
+   */
+  private buildMcpClients(agentMcpConfig: AgentMcpConfig): IMcpClient[] {
+    const mcpSettings = ConfigManager.getInstance().getMcpSettings();
+    const services: McpServiceConfig[] = mcpSettings?.services ?? [];
+
+    return services
+      .filter(service => agentMcpConfig[service.id]?.enabled)
+      .map(service => new SimpleSseMcpClient(service.url));
+  }
+
+  /**
    * Get base work path for file storage
    */
   private getBaseWorkPath(): string {
@@ -192,8 +204,9 @@ export class EkoService {
       fs.mkdirSync(taskWorkPath, { recursive: true });
       const activeView = this.tabManager.getActiveView();
       if (activeView) {
+        const fileMcpClients = this.buildMcpClients(agentConfig.fileAgent.mcpServices);
         agents.push(
-          new FileAgent(activeView, taskWorkPath, this.mcpClient, agentConfig.fileAgent.customPrompt)
+          new FileAgent(activeView, taskWorkPath, fileMcpClients, agentConfig.fileAgent.customPrompt)
         );
       }
     }
@@ -219,11 +232,10 @@ export class EkoService {
     const llms: LLMs = configManager.getLLMsConfig();
     const agentConfig = configManager.getAgentConfig();
 
-    this.mcpClient = new SimpleSseMcpClient("http://localhost:5173/api/mcp/sse");
-
     // Only create BrowserAgent once (no file storage involved)
     if (agentConfig?.browserAgent?.enabled) {
-      this.browserAgent = new BrowserAgent(this.tabManager, this.mcpClient, agentConfig.browserAgent.customPrompt);
+      const browserMcpClients = this.buildMcpClients(agentConfig.browserAgent.mcpServices);
+      this.browserAgent = new BrowserAgent(this.tabManager, browserMcpClients, agentConfig.browserAgent.customPrompt);
     }
 
     // Create default Eko instance with only BrowserAgent for restore/modify scenarios
@@ -267,7 +279,8 @@ export class EkoService {
 
     // Recreate BrowserAgent with new config
     if (agentConfig?.browserAgent?.enabled) {
-      this.browserAgent = new BrowserAgent(this.tabManager, this.mcpClient, agentConfig.browserAgent.customPrompt);
+      const browserMcpClients = this.buildMcpClients(agentConfig.browserAgent.mcpServices);
+      this.browserAgent = new BrowserAgent(this.tabManager, browserMcpClients, agentConfig.browserAgent.customPrompt);
     } else {
       this.browserAgent = null;
     }
