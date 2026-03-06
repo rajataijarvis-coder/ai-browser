@@ -10,26 +10,31 @@ import {
   RobotOutlined,
   GlobalOutlined,
   FolderOutlined,
-  ApiOutlined
+  ApiOutlined,
+  PlusOutlined,
+  DeleteOutlined
 } from '@ant-design/icons';
-import { Typography, Switch, Input, Spin } from 'antd';
+import { Typography, Switch, Input, Spin, Tag, Popconfirm, Modal, App } from 'antd';
 import { useTranslation } from 'react-i18next';
-import type { AgentConfig } from '@/types';
+import type { AgentConfig, CustomAgentConfig } from '@/types';
 import type { McpServiceConfig, AgentMcpConfig } from '@/models/settings';
-import { SelectableCard } from '@/components/ui';
+import { SelectableCard, ActionButton } from '@/components/ui';
+import { BROWSER_AGENT_DEFAULT_PROMPT, FILE_AGENT_DEFAULT_PROMPT } from '@/config/agent-prompts';
 
 const { Title, Paragraph, Text } = Typography;
 const { TextArea } = Input;
 
-type AgentTab = 'browser' | 'file';
+type AgentTab = string; // 'browser' | 'file' | custom agent id
 
-/** Tab navigation item */
-const TabItem: React.FC<{
+/** List item for agent sidebar */
+const AgentListItem: React.FC<{
   label: string;
   icon: React.ReactNode;
   isSelected: boolean;
+  tagLabel?: string;
+  tagColor?: string;
   onClick: () => void;
-}> = ({ label, icon, isSelected, onClick }) => (
+}> = ({ label, icon, isSelected, tagLabel, tagColor, onClick }) => (
   <SelectableCard
     selected={isSelected}
     onClick={onClick}
@@ -38,7 +43,14 @@ const TabItem: React.FC<{
   >
     <div className="flex items-center gap-3 text-left">
       <span className="text-lg text-text-12 dark:text-text-12-dark">{icon}</span>
-      <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-200">{label}</span>
+      <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-200 truncate">
+        {label}
+      </span>
+      {tagLabel && (
+        <Tag color={tagColor} className="!text-xs !mr-0 flex-shrink-0">
+          {tagLabel}
+        </Tag>
+      )}
     </div>
   </SelectableCard>
 );
@@ -123,7 +135,7 @@ const McpServiceSelector: React.FC<{
               />
             </div>
 
-            {/* Tool list (visible when service is enabled and has tools) */}
+            {/* Tool list */}
             {isEnabled && service.tools.length > 0 && (
               <div className="border-t border-gray-100 dark:border-white/5 px-4 py-2 space-y-1">
                 {service.tools.map((tool) => (
@@ -158,6 +170,24 @@ const McpServiceSelector: React.FC<{
   );
 };
 
+/** Read-only default prompt display */
+const DefaultPromptBlock: React.FC<{ prompt: string }> = ({ prompt }) => {
+  const { t } = useTranslation('settings');
+  return (
+    <div>
+      <Text className="!text-text-01 dark:!text-text-01-dark font-medium block mb-1">
+        {t('agent.default_prompt')}
+      </Text>
+      <Text className="!text-text-12 dark:text-text-12-dark text-xs block mb-2">
+        {t('agent.default_prompt_desc')}
+      </Text>
+      <pre className="max-h-60 overflow-y-auto bg-gray-50 dark:bg-white/5 rounded-lg p-4 text-sm text-text-01 dark:text-text-01-dark whitespace-pre-wrap break-words border border-gray-200 dark:border-white/10 leading-relaxed">
+        {prompt}
+      </pre>
+    </div>
+  );
+};
+
 interface AgentPanelProps {
   settings?: AgentConfig;
   onSettingsChange?: (settings: AgentConfig) => void;
@@ -171,15 +201,15 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
   mcpServices = []
 }) => {
   const { t } = useTranslation('settings');
+  const { message: antMessage } = App.useApp();
   const [activeTab, setActiveTab] = useState<AgentTab>('browser');
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [newAgentName, setNewAgentName] = useState('');
 
-  const tabs: { id: AgentTab; labelKey: string; icon: React.ReactNode }[] = [
-    { id: 'browser', labelKey: 'agent.browser_agent', icon: <GlobalOutlined /> },
-    { id: 'file', labelKey: 'agent.file_agent', icon: <FolderOutlined /> }
-  ];
+  const customAgents = settings?.customAgents ?? [];
 
-  /** Update a specific agent's settings */
-  const updateAgent = (
+  /** Update a built-in agent's settings */
+  const updateBuiltinAgent = (
     agentKey: 'browserAgent' | 'fileAgent',
     updates: Partial<AgentConfig['browserAgent']>
   ) => {
@@ -190,48 +220,80 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
     });
   };
 
-  /** Render agent tab content */
-  const renderAgentContent = (
+  /** Update a custom agent's settings */
+  const updateCustomAgent = (id: string, updates: Partial<CustomAgentConfig>) => {
+    if (!settings || !onSettingsChange) return;
+    onSettingsChange({
+      ...settings,
+      customAgents: customAgents.map(a => a.id === id ? { ...a, ...updates } : a)
+    });
+  };
+
+  /** Add a new custom agent */
+  const handleAddAgent = () => {
+    if (!newAgentName.trim() || !settings || !onSettingsChange) return;
+
+    const newAgent: CustomAgentConfig = {
+      id: crypto.randomUUID(),
+      name: newAgentName.trim(),
+      description: '',
+      planDescription: '',
+      enabled: true,
+      mcpServices: {}
+    };
+
+    onSettingsChange({
+      ...settings,
+      customAgents: [...customAgents, newAgent]
+    });
+
+    setActiveTab(newAgent.id);
+    setNewAgentName('');
+    setAddModalOpen(false);
+    antMessage.success(t('agent.agent_added'));
+  };
+
+  /** Delete a custom agent */
+  const handleDeleteAgent = (id: string) => {
+    if (!settings || !onSettingsChange) return;
+    onSettingsChange({
+      ...settings,
+      customAgents: customAgents.filter(a => a.id !== id)
+    });
+    if (activeTab === id) setActiveTab('browser');
+    antMessage.success(t('agent.agent_deleted'));
+  };
+
+  /** Render built-in agent detail */
+  const renderBuiltinAgentContent = (
     agentKey: 'browserAgent' | 'fileAgent',
     behaviorKey: 'browser' | 'file'
   ) => {
     if (!settings) return null;
-
     const agentSettings = settings[agentKey];
     const isEnabled = agentSettings?.enabled ?? true;
-    const behaviorKeys = behaviorKey === 'browser'
-      ? ['analyze', 'commands', 'popups', 'user_help', 'scroll']
-      : ['tasks', 'paths', 'naming', 'visualization', 'charts'];
+    const defaultPrompt = behaviorKey === 'browser'
+      ? BROWSER_AGENT_DEFAULT_PROMPT
+      : FILE_AGENT_DEFAULT_PROMPT;
 
     return (
       <div className="space-y-6">
-        {/* Enable toggle */}
+        {/* Header with enable toggle */}
         <div className="flex items-center justify-between">
-          <div>
-            <Text className="!text-text-01 dark:!text-text-01-dark font-medium block">
-              {t('agent.enable_agent')}
+          <div className="flex items-center gap-3">
+            <Text className="!text-text-01 dark:!text-text-01-dark font-medium text-base">
+              {t(`agent.${behaviorKey}_agent`)}
             </Text>
-            <Text className="!text-text-12 dark:text-text-12-dark text-sm">
-              {t(`agent.${behaviorKey}_agent_behavior`)}
-            </Text>
+            <Tag color="blue">{t('agent.builtin_tag')}</Tag>
           </div>
           <Switch
             checked={isEnabled}
-            onChange={(enabled) => updateAgent(agentKey, { enabled })}
+            onChange={(enabled) => updateBuiltinAgent(agentKey, { enabled })}
           />
         </div>
 
-        {/* Default behaviors */}
-        <div className="p-4 bg-white dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10">
-          <Text className="!text-text-12 dark:!text-text-12-dark font-medium block mb-3">
-            {t('agent.default_behavior')}
-          </Text>
-          <div className="text-sm text-text-12 dark:text-text-12-dark space-y-1.5">
-            {behaviorKeys.map((key) => (
-              <div key={key}>• {t(`agent.${behaviorKey}_behaviors.${key}`)}</div>
-            ))}
-          </div>
-        </div>
+        {/* Default prompt (read-only) */}
+        <DefaultPromptBlock prompt={defaultPrompt} />
 
         {/* Custom prompt */}
         <div>
@@ -243,15 +305,15 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
           </Text>
           <TextArea
             value={agentSettings?.customPrompt ?? ''}
-            onChange={(e) => updateAgent(agentKey, { customPrompt: e.target.value })}
+            onChange={(e) => updateBuiltinAgent(agentKey, { customPrompt: e.target.value })}
             placeholder={t('agent.custom_prompt_placeholder')}
-            rows={6}
+            rows={4}
             disabled={!isEnabled}
             className="bg-white dark:bg-white/5 border-gray-200 dark:border-white/10 text-text-01 dark:text-text-01-dark placeholder-gray-500"
           />
         </div>
 
-        {/* Per-agent MCP services */}
+        {/* MCP services */}
         <div className="pt-4 border-t border-gray-200 dark:border-white/10">
           <Text className="!text-text-01 dark:!text-text-01-dark font-medium text-base block mb-1">
             {t('agent.mcp_services_title')}
@@ -262,7 +324,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
           <McpServiceSelector
             services={mcpServices}
             agentMcpConfig={agentSettings?.mcpServices ?? {}}
-            onConfigChange={(mcpConfig) => updateAgent(agentKey, { mcpServices: mcpConfig })}
+            onConfigChange={(mcpConfig) => updateBuiltinAgent(agentKey, { mcpServices: mcpConfig })}
             disabled={!isEnabled}
           />
         </div>
@@ -270,7 +332,99 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
     );
   };
 
-  /** Render content based on active tab */
+  /** Render custom agent detail */
+  const renderCustomAgentContent = (agent: CustomAgentConfig) => {
+    return (
+      <div className="space-y-6">
+        {/* Header with delete */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Text className="!text-text-01 dark:!text-text-01-dark font-medium text-base">
+              {agent.name}
+            </Text>
+            <Tag color="green">{t('agent.custom_tag')}</Tag>
+          </div>
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={agent.enabled}
+              onChange={(enabled) => updateCustomAgent(agent.id, { enabled })}
+            />
+            <Popconfirm
+              title={t('agent.delete_agent')}
+              description={t('agent.delete_agent_confirm')}
+              onConfirm={() => handleDeleteAgent(agent.id)}
+              okButtonProps={{ danger: true }}
+            >
+              <ActionButton variant="danger" icon={<DeleteOutlined />} size="small">
+                {t('agent.delete_agent')}
+              </ActionButton>
+            </Popconfirm>
+          </div>
+        </div>
+
+        {/* Name */}
+        <div>
+          <Text className="!text-text-01 dark:!text-text-01-dark font-medium block mb-2">
+            {t('agent.agent_name')}
+          </Text>
+          <Input
+            value={agent.name}
+            onChange={(e) => updateCustomAgent(agent.id, { name: e.target.value })}
+            placeholder={t('agent.agent_name_placeholder')}
+            className="bg-white dark:bg-white/5 border-gray-200 dark:border-white/10"
+          />
+        </div>
+
+        {/* Description (system prompt) */}
+        <div>
+          <Text className="!text-text-01 dark:!text-text-01-dark font-medium block mb-2">
+            {t('agent.agent_description')}
+          </Text>
+          <TextArea
+            value={agent.description}
+            onChange={(e) => updateCustomAgent(agent.id, { description: e.target.value })}
+            placeholder={t('agent.agent_description_placeholder')}
+            rows={6}
+            disabled={!agent.enabled}
+            className="bg-white dark:bg-white/5 border-gray-200 dark:border-white/10 text-text-01 dark:text-text-01-dark placeholder-gray-500"
+          />
+        </div>
+
+        {/* Plan description */}
+        <div>
+          <Text className="!text-text-01 dark:!text-text-01-dark font-medium block mb-2">
+            {t('agent.agent_plan_description')}
+          </Text>
+          <TextArea
+            value={agent.planDescription}
+            onChange={(e) => updateCustomAgent(agent.id, { planDescription: e.target.value })}
+            placeholder={t('agent.agent_plan_description_placeholder')}
+            rows={3}
+            disabled={!agent.enabled}
+            className="bg-white dark:bg-white/5 border-gray-200 dark:border-white/10 text-text-01 dark:text-text-01-dark placeholder-gray-500"
+          />
+        </div>
+
+        {/* MCP services */}
+        <div className="pt-4 border-t border-gray-200 dark:border-white/10">
+          <Text className="!text-text-01 dark:!text-text-01-dark font-medium text-base block mb-1">
+            {t('agent.mcp_services_title')}
+          </Text>
+          <Text className="!text-text-12 dark:text-text-12-dark text-sm block mb-4">
+            {t('agent.mcp_services_desc')}
+          </Text>
+          <McpServiceSelector
+            services={mcpServices}
+            agentMcpConfig={agent.mcpServices}
+            onConfigChange={(mcpConfig) => updateCustomAgent(agent.id, { mcpServices: mcpConfig })}
+            disabled={!agent.enabled}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  /** Render detail panel content */
   const renderContent = () => {
     if (!settings) {
       return (
@@ -280,25 +434,33 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
       );
     }
 
-    switch (activeTab) {
-      case 'browser':
-        return renderAgentContent('browserAgent', 'browser');
-      case 'file':
-        return renderAgentContent('fileAgent', 'file');
-      default:
-        return null;
-    }
+    if (activeTab === 'browser') return renderBuiltinAgentContent('browserAgent', 'browser');
+    if (activeTab === 'file') return renderBuiltinAgentContent('fileAgent', 'file');
+
+    const customAgent = customAgents.find(a => a.id === activeTab);
+    if (customAgent) return renderCustomAgentContent(customAgent);
+
+    return null;
   };
 
   return (
     <div className="flex flex-col h-full">
-      {/* Fixed header */}
+      {/* Header */}
       <div className="flex-shrink-0 p-8 pb-0">
-        <div className="flex items-center gap-3 mb-4">
-          <RobotOutlined className="text-3xl text-primary dark:text-purple-400" />
-          <Title level={2} className="!text-text-01 dark:!text-text-01-dark !mb-0">
-            {t('agent.title')}
-          </Title>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <RobotOutlined className="text-3xl text-primary dark:text-purple-400" />
+            <Title level={2} className="!text-text-01 dark:!text-text-01-dark !mb-0">
+              {t('agent.title')}
+            </Title>
+          </div>
+          <ActionButton
+            variant="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setAddModalOpen(true)}
+          >
+            {t('agent.add_custom_agent')}
+          </ActionButton>
         </div>
         <Paragraph className="!text-text-12 dark:!text-text-12-dark !mb-0">
           {t('agent.description')}
@@ -308,25 +470,72 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
       {/* Main content */}
       <div className="flex-1 min-h-0 p-8 pt-6">
         <div className="flex gap-6 h-full">
-          {/* Left: Tab navigation */}
-          <div className="w-48 flex-shrink-0">
-            {tabs.map((tab) => (
-              <TabItem
-                key={tab.id}
-                label={t(tab.labelKey)}
-                icon={tab.icon}
-                isSelected={activeTab === tab.id}
-                onClick={() => setActiveTab(tab.id)}
-              />
-            ))}
+          {/* Left sidebar */}
+          <div className="w-56 flex-shrink-0 overflow-y-auto">
+            {/* Built-in agents */}
+            <AgentListItem
+              label={t('agent.browser_agent')}
+              icon={<GlobalOutlined />}
+              isSelected={activeTab === 'browser'}
+              tagLabel={t('agent.builtin_tag')}
+              tagColor="blue"
+              onClick={() => setActiveTab('browser')}
+            />
+            <AgentListItem
+              label={t('agent.file_agent')}
+              icon={<FolderOutlined />}
+              isSelected={activeTab === 'file'}
+              tagLabel={t('agent.builtin_tag')}
+              tagColor="blue"
+              onClick={() => setActiveTab('file')}
+            />
+
+            {/* Custom agents */}
+            {customAgents.length > 0 && (
+              <>
+                <div className="my-3 border-t border-gray-200 dark:border-white/10" />
+                {customAgents.map((agent) => (
+                  <AgentListItem
+                    key={agent.id}
+                    label={agent.name}
+                    icon={<RobotOutlined />}
+                    isSelected={activeTab === agent.id}
+                    tagLabel={t('agent.custom_tag')}
+                    tagColor="green"
+                    onClick={() => setActiveTab(agent.id)}
+                  />
+                ))}
+              </>
+            )}
           </div>
 
-          {/* Right: Content panel */}
+          {/* Right detail panel */}
           <div className="flex-1 bg-white dark:bg-white/5 backdrop-blur-sm rounded-lg border border-gray-200 dark:border-white/10 p-6 overflow-y-auto">
             {renderContent()}
           </div>
         </div>
       </div>
+
+      {/* Add custom agent modal */}
+      <Modal
+        title={t('agent.add_custom_agent')}
+        open={addModalOpen}
+        onOk={handleAddAgent}
+        onCancel={() => { setAddModalOpen(false); setNewAgentName(''); }}
+        okButtonProps={{ disabled: !newAgentName.trim() }}
+        destroyOnHidden
+      >
+        <div className="py-4">
+          <Text className="block mb-2">{t('agent.agent_name')}</Text>
+          <Input
+            value={newAgentName}
+            onChange={(e) => setNewAgentName(e.target.value)}
+            placeholder={t('agent.agent_name_placeholder')}
+            onPressEnter={handleAddAgent}
+            autoFocus
+          />
+        </div>
+      </Modal>
     </div>
   );
 };

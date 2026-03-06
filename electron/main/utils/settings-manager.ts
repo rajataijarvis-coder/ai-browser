@@ -135,6 +135,9 @@ export class SettingsManager {
     if (!agentConfig.fileAgent.mcpServices) {
       agentConfig.fileAgent.mcpServices = {};
     }
+    if (!agentConfig.customAgents) {
+      agentConfig.customAgents = [];
+    }
     return agentConfig;
   }
 

@@ -106,7 +106,8 @@ export function getDefaultSettings(): AppSettings {
         enabled: true,
         customPrompt: '',
         mcpServices: {}
-      }
+      },
+      customAgents: []
     },
     mcp: {
       services: []

@@ -139,6 +139,15 @@ export interface McpSettings {
   services: McpServiceConfig[];
 }
 
+export interface CustomAgentConfig {
+  id: string;
+  name: string;
+  description: string;
+  planDescription: string;
+  enabled: boolean;
+  mcpServices: AgentMcpConfig;
+}
+
 export interface AgentSettings {
   browserAgent: {
     enabled: boolean;
@@ -150,6 +159,7 @@ export interface AgentSettings {
     customPrompt?: string;
     mcpServices: AgentMcpConfig;
   };
+  customAgents: CustomAgentConfig[];
 }
 
 export interface UISettings {

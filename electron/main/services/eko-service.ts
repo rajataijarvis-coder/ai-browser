@@ -1,4 +1,4 @@
-import { Eko, SimpleSseMcpClient, type IMcpClient, type LLMs, type StreamCallbackMessage, type AgentContext } from "@jarvis-agent/core";
+import { Agent, Eko, SimpleSseMcpClient, type IMcpClient, type LLMs, type StreamCallbackMessage, type AgentContext } from "@jarvis-agent/core";
 import { BrowserAgent, FileAgent } from "@jarvis-agent/electron";
 import type { EkoResult } from "@jarvis-agent/core/types";
 import { BrowserWindow, app } from "electron";
@@ -157,6 +157,21 @@ export class EkoService {
   }
 
   /**
+   * Build custom Agent instances from config
+   */
+  private buildCustomAgents(agentConfig: ReturnType<ConfigManager['getAgentConfig']>): Agent[] {
+    return (agentConfig?.customAgents ?? [])
+      .filter(c => c.enabled)
+      .map(c => new Agent({
+        name: c.name,
+        description: c.description,
+        planDescription: c.planDescription,
+        tools: [],
+        mcpClients: this.buildMcpClients(c.mcpServices),
+      }));
+  }
+
+  /**
    * Build MCP clients for a specific agent based on its config
    */
   private buildMcpClients(agentMcpConfig: AgentMcpConfig): IMcpClient[] {
@@ -211,6 +226,9 @@ export class EkoService {
       }
     }
 
+    // Create custom agents
+    agents.push(...this.buildCustomAgents(agentConfig));
+
     // Get network settings for timeout and retry configuration
     const settingsManager = SettingsManager.getInstance();
     const networkSettings = settingsManager.getAppSettings().network;
@@ -238,8 +256,9 @@ export class EkoService {
       this.browserAgent = new BrowserAgent(this.tabManager, browserMcpClients, agentConfig.browserAgent.customPrompt);
     }
 
-    // Create default Eko instance with only BrowserAgent for restore/modify scenarios
-    const defaultAgents = this.browserAgent ? [this.browserAgent] : [];
+    // Create default Eko instance with BrowserAgent + custom agents for restore/modify
+    const defaultAgents: any[] = this.browserAgent ? [this.browserAgent] : [];
+    defaultAgents.push(...this.buildCustomAgents(agentConfig));
 
     // Get network settings for timeout and retry configuration
     const settingsManager = SettingsManager.getInstance();
@@ -285,8 +304,9 @@ export class EkoService {
       this.browserAgent = null;
     }
 
-    // Create default Eko instance
-    const defaultAgents = this.browserAgent ? [this.browserAgent] : [];
+    // Create default Eko instance with custom agents
+    const reloadAgents: any[] = this.browserAgent ? [this.browserAgent] : [];
+    reloadAgents.push(...this.buildCustomAgents(agentConfig));
 
     // Get network settings for timeout and retry configuration
     const settingsManager = SettingsManager.getInstance();
@@ -294,7 +314,7 @@ export class EkoService {
 
     this.eko = new Eko({
       llms,
-      agents: defaultAgents,
+      agents: reloadAgents,
       callback: this.createCallback(),
       globalConfig: {
         streamFirstTimeout: networkSettings.requestTimeout * 1000,  // Convert seconds to milliseconds
