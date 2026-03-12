@@ -18,11 +18,11 @@ importers:
         specifier: ^1.3.0
         version: 1.3.0(@ant-design/cssinjs@1.24.0(react-dom@19.1.2(react@19.1.2))(react@19.1.2))(antd@6.1.4(date-fns@4.1.0)(react-dom@19.1.2(react@19.1.2))(react@19.1.2))(next@15.4.8(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.58.1)(react-dom@19.1.2(react@19.1.2))(react@19.1.2))(react-dom@19.1.2(react@19.1.2))(react@19.1.2)
       '@jarvis-agent/core':
-        specifier: ^0.1.7
-        version: 0.1.7(ai@5.0.76(zod@4.3.6))
+        specifier: ^0.2.2
+        version: 0.2.2(ai@5.0.76(zod@4.3.6))
       '@jarvis-agent/electron':
-        specifier: ^0.1.15
-        version: 0.1.15(ai@5.0.76(zod@4.3.6))(electron@33.4.11)
+        specifier: ^0.2.2
+        version: 0.2.2(ai@5.0.76(zod@4.3.6))(electron@33.4.11)
       '@jest/globals':
         specifier: ^30.1.2
         version: 30.2.0
@@ -207,6 +207,12 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
+  '@ai-sdk/azure@2.0.101':
+    resolution: {integrity: sha512-pZ2T37JwIlCAhZXZ3Oj8xLqyYYpr4OOOGwrJcfPZ77DbqcbLjwE+DQoziz4VaU1r4rHEKpIG/oUsHfHzXfTgTQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
   '@ai-sdk/deepseek@1.0.35':
     resolution: {integrity: sha512-Qvh2yxL5zJS9RO/Bf12pyYBIDmn+9GR1hT6e28IYWQWnt2Xq0h9XGps6XagLAv3VYYFg8c/ozkWVd4kXLZ25HA==}
     engines: {node: '>=18'}
@@ -231,8 +237,8 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/openai@2.0.97':
-    resolution: {integrity: sha512-SqGUEiwTN77NSkYS74lAaXoSbf6vKhD9mBikfGP+PxAmCzc7zT0zULXaqMQiST+lSXCdBwtTCDSUFfFts6UX2g==}
+  '@ai-sdk/openai@2.0.99':
+    resolution: {integrity: sha512-wwa1/DuO9XThaA+sAi0d3+xfkbEx9nRhZ1USV6kktndmEs8aQRR0DJK/Iec+mwNu06IhfDGd5vMscR1U1q155g==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -1021,11 +1027,11 @@ packages:
     resolution: {integrity: sha512-ZXRY4jNvVgSVQ8DL3LTcakaAtXwTVUxE81hslsyD2AtoXW/wVob10HkOJ1X/pAlcI7D+2YoZKg5do8G/w6RYgA==}
     engines: {node: '>=8'}
 
-  '@jarvis-agent/core@0.1.7':
-    resolution: {integrity: sha512-ML7g/c6+m8bZKo/HRGIj1nJ8hc833xgFCGNp5Qbsn74lLpKATDvGHfoUNEM0BH8smAa1dMzHXfjhCu+2fJyYfg==}
+  '@jarvis-agent/core@0.2.2':
+    resolution: {integrity: sha512-/rpm/aRiTUC33BaSS2wiVyzE+aGa+fdpuKWbT72AmOKPIdEJq1GXaO7z7Uv1f2v2kUEi8Q3hOscPtp7vDl2qBg==}
 
-  '@jarvis-agent/electron@0.1.15':
-    resolution: {integrity: sha512-xUsEUSfRZZ3EbBNyEoBfRR5DF0Kz3tX/8fnfhjUj8yNH2yolqHLh11PTZ9XSdPFCyJYVl9KlZYfNzgXtlwLKIg==}
+  '@jarvis-agent/electron@0.2.2':
+    resolution: {integrity: sha512-J+FHxu8YCNBNB5w/H5zSof3dybd5+pqsGRINLaedj+WE/fzN57BmuPtmHYmE6U1vCZeVTYcveWV8s7LuizPklQ==}
     peerDependencies:
       electron: '>=20.0.0'
 
@@ -5699,6 +5705,13 @@ snapshots:
       '@ai-sdk/provider-utils': 3.0.22(zod@4.3.6)
       zod: 4.3.6
 
+  '@ai-sdk/azure@2.0.101(zod@4.3.6)':
+    dependencies:
+      '@ai-sdk/openai': 2.0.99(zod@4.3.6)
+      '@ai-sdk/provider': 2.0.1
+      '@ai-sdk/provider-utils': 3.0.22(zod@4.3.6)
+      zod: 4.3.6
+
   '@ai-sdk/deepseek@1.0.35(zod@4.3.6)':
     dependencies:
       '@ai-sdk/provider': 2.0.1
@@ -5724,7 +5737,7 @@ snapshots:
       '@ai-sdk/provider-utils': 3.0.22(zod@4.3.6)
       zod: 4.3.6
 
-  '@ai-sdk/openai@2.0.97(zod@4.3.6)':
+  '@ai-sdk/openai@2.0.99(zod@4.3.6)':
     dependencies:
       '@ai-sdk/provider': 2.0.1
       '@ai-sdk/provider-utils': 3.0.22(zod@4.3.6)
@@ -6597,13 +6610,14 @@ snapshots:
 
   '@istanbuljs/schema@0.1.3': {}
 
-  '@jarvis-agent/core@0.1.7(ai@5.0.76(zod@4.3.6))':
+  '@jarvis-agent/core@0.2.2(ai@5.0.76(zod@4.3.6))':
     dependencies:
       '@ai-sdk/amazon-bedrock': 3.0.86(zod@4.3.6)
       '@ai-sdk/anthropic': 2.0.69(zod@4.3.6)
+      '@ai-sdk/azure': 2.0.101(zod@4.3.6)
       '@ai-sdk/deepseek': 1.0.35(zod@4.3.6)
       '@ai-sdk/google': 2.0.58(zod@4.3.6)
-      '@ai-sdk/openai': 2.0.97(zod@4.3.6)
+      '@ai-sdk/openai': 2.0.99(zod@4.3.6)
       '@ai-sdk/openai-compatible': 1.0.34(zod@4.3.6)
       '@ai-sdk/provider': 2.0.1
       '@openrouter/ai-sdk-provider': 1.5.4(ai@5.0.76(zod@4.3.6))(zod@4.3.6)
@@ -6613,9 +6627,9 @@ snapshots:
     transitivePeerDependencies:
       - ai
 
-  '@jarvis-agent/electron@0.1.15(ai@5.0.76(zod@4.3.6))(electron@33.4.11)':
+  '@jarvis-agent/electron@0.2.2(ai@5.0.76(zod@4.3.6))(electron@33.4.11)':
     dependencies:
-      '@jarvis-agent/core': 0.1.7(ai@5.0.76(zod@4.3.6))
+      '@jarvis-agent/core': 0.2.2(ai@5.0.76(zod@4.3.6))
       electron: 33.4.11
       glob: 11.0.2
     transitivePeerDependencies:

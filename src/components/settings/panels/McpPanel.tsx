@@ -151,9 +151,14 @@ export const McpPanel: React.FC<McpPanelProps> = ({
       <div className="flex items-center justify-between mb-6 flex-shrink-0">
         <div className="flex items-center gap-3">
           <ApiOutlined className="text-3xl text-primary dark:text-purple-400" />
-          <Title level={2} className="!text-text-01 dark:!text-text-01-dark !mb-0">
-            {t('mcp.title')}
-          </Title>
+          <div>
+            <Title level={2} className="!text-text-01 dark:!text-text-01-dark !mb-0">
+              {t('mcp.title')}
+            </Title>
+            <Paragraph className="!text-text-12 dark:!text-text-12-dark !mb-0 text-sm mt-1">
+              {t('mcp.description')}
+            </Paragraph>
+          </div>
         </div>
         <ActionButton
           variant="primary"

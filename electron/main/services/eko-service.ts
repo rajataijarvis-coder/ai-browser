@@ -1,6 +1,5 @@
-import { Agent, Eko, SimpleSseMcpClient, type IMcpClient, type LLMs, type StreamCallbackMessage, type AgentContext } from "@jarvis-agent/core";
+import { Agent, Eko, SimpleSseMcpClient, type IMcpClient, type LLMs, type StreamCallbackMessage, type AgentContext, type EkoResult } from "@jarvis-agent/core";
 import { BrowserAgent, FileAgent } from "@jarvis-agent/electron";
-import type { EkoResult } from "@jarvis-agent/core/types";
 import { BrowserWindow, app } from "electron";
 import path from "node:path";
 import fs from "node:fs";
@@ -23,11 +22,11 @@ export class EkoService {
     reject: (reason?: any) => void;
   }>();
 
-  // Map toolId to requestId for human interactions
-  private toolIdToRequestId = new Map<string, string>();
+  // Map toolCallId to requestId for human interactions
+  private toolCallIdToRequestId = new Map<string, string>();
 
-  // Store current human_interact toolId
-  private currentHumanInteractToolId: string | null = null;
+  // Store current human_interact toolCallId
+  private currentHumanInteractToolCallId: string | null = null;
 
   // Track running task IDs for accurate status checking
   private runningTaskIds: Set<string> = new Set();
@@ -48,8 +47,8 @@ export class EkoService {
           return Promise.resolve();
         }
 
-        if (message.type === 'tool_use' && message.toolName === 'human_interact' && message.toolId) {
-          this.currentHumanInteractToolId = message.toolId;
+        if (message.type === 'tool_use' && message.toolName === 'human_interact' && message.toolCallId) {
+          this.currentHumanInteractToolCallId = message.toolCallId;
         }
 
         return new Promise((resolve) => {
@@ -510,9 +509,9 @@ export class EkoService {
     return new Promise((resolve, reject) => {
       this.pendingHumanRequests.set(requestId, { resolve, reject });
 
-      if (this.currentHumanInteractToolId) {
-        this.toolIdToRequestId.set(this.currentHumanInteractToolId, requestId);
-        this.currentHumanInteractToolId = null;
+      if (this.currentHumanInteractToolCallId) {
+        this.toolCallIdToRequestId.set(this.currentHumanInteractToolCallId, requestId);
+        this.currentHumanInteractToolCallId = null;
       }
 
       agentContext?.context?.controller?.signal?.addEventListener('abort', () => {
@@ -535,7 +534,7 @@ export class EkoService {
     let actualRequestId = response.requestId;
 
     if (!pending) {
-      const mappedRequestId = this.toolIdToRequestId.get(response.requestId);
+      const mappedRequestId = this.toolCallIdToRequestId.get(response.requestId);
       if (mappedRequestId) {
         pending = this.pendingHumanRequests.get(mappedRequestId);
         actualRequestId = mappedRequestId;
@@ -545,7 +544,7 @@ export class EkoService {
     if (!pending) return false;
 
     this.pendingHumanRequests.delete(actualRequestId);
-    this.toolIdToRequestId.delete(response.requestId);
+    this.toolCallIdToRequestId.delete(response.requestId);
 
     if (response.success) {
       pending.resolve(response.result);
@@ -573,8 +572,8 @@ export class EkoService {
     }
 
     this.pendingHumanRequests.clear();
-    this.toolIdToRequestId.clear();
-    this.currentHumanInteractToolId = null;
+    this.toolCallIdToRequestId.clear();
+    this.currentHumanInteractToolCallId = null;
   }
 
   destroy() {

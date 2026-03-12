@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { App } from 'antd';
-import { EkoResult } from '@jarvis-agent/core/dist/types';
+import { EkoResult } from '@jarvis-agent/core';
 import { MessageProcessor } from '@/utils/messageTransform';
 import { Task } from '@/models';
 import { uuidv4 } from '@/utils/uuid';

@@ -161,7 +161,7 @@ export class ConfigManager {
       model: selectedModel,
       apiKey: apiKey || "",
       config: {
-        maxTokens,
+        maxOutputTokens: maxTokens,
         temperature: chatSettings.temperature
       }
     };

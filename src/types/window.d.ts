@@ -4,7 +4,7 @@
 
 import type { ProviderType, UserModelConfigs } from './model-config';
 import type { AgentConfig } from './agent-config';
-import type { EkoResult } from '@jarvis-agent/core/dist/types';
+import type { EkoResult } from '@jarvis-agent/core';
 import type { AppSettings, McpToolInfo } from '@/models/settings';
 
 // Unified IPC response structure
