@@ -19,7 +19,13 @@ import { useTranslation } from 'react-i18next';
 import type { AgentConfig, CustomAgentConfig } from '@/types';
 import type { McpServiceConfig, AgentMcpConfig } from '@/models/settings';
 import { SelectableCard, ActionButton } from '@/components/ui';
-import { BROWSER_AGENT_DEFAULT_PROMPT, FILE_AGENT_DEFAULT_PROMPT } from '@/config/agent-prompts';
+import {
+  BROWSER_AGENT_DEFAULT_PROMPT,
+  FILE_AGENT_DEFAULT_PROMPT,
+  BROWSER_AGENT_BUILTIN_TOOLS,
+  FILE_AGENT_BUILTIN_TOOLS,
+  type BuiltinToolInfo
+} from '@/config/agent-prompts';
 
 const { Title, Paragraph, Text } = Typography;
 const { TextArea } = Input;
@@ -188,6 +194,38 @@ const DefaultPromptBlock: React.FC<{ prompt: string }> = ({ prompt }) => {
   );
 };
 
+/** Read-only built-in tools display */
+const BuiltinToolsBlock: React.FC<{ tools: BuiltinToolInfo[] }> = ({ tools }) => {
+  const { t } = useTranslation('settings');
+  return (
+    <div>
+      <Text className="!text-text-01 dark:!text-text-01-dark font-medium block mb-1">
+        {t('agent.builtin_tools')}
+      </Text>
+      <Text className="!text-text-12 dark:text-text-12-dark text-xs block mb-2">
+        {t('agent.builtin_tools_desc')}
+      </Text>
+      <div className="rounded-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+        {tools.map((tool, index) => (
+          <div
+            key={tool.name}
+            className={`flex items-center gap-3 px-4 py-2.5 ${
+              index > 0 ? 'border-t border-gray-100 dark:border-white/5' : ''
+            }`}
+          >
+            <code className="text-xs font-mono text-primary dark:text-purple-400 bg-primary/5 dark:bg-purple-400/10 px-2 py-0.5 rounded flex-shrink-0">
+              {tool.name}
+            </code>
+            <span className="text-xs text-text-12 dark:text-text-12-dark truncate">
+              {tool.description}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 interface AgentPanelProps {
   settings?: AgentConfig;
   onSettingsChange?: (settings: AgentConfig) => void;
@@ -275,6 +313,9 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
     const defaultPrompt = behaviorKey === 'browser'
       ? BROWSER_AGENT_DEFAULT_PROMPT
       : FILE_AGENT_DEFAULT_PROMPT;
+    const builtinTools = behaviorKey === 'browser'
+      ? BROWSER_AGENT_BUILTIN_TOOLS
+      : FILE_AGENT_BUILTIN_TOOLS;
 
     return (
       <div className="space-y-6">
@@ -294,6 +335,9 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
 
         {/* Default prompt (read-only) */}
         <DefaultPromptBlock prompt={defaultPrompt} />
+
+        {/* Built-in tools (read-only) */}
+        <BuiltinToolsBlock tools={builtinTools} />
 
         {/* Custom prompt */}
         <div>

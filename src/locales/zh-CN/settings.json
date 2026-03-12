@@ -207,7 +207,9 @@
     "default_prompt": "默认系统提示词",
     "default_prompt_desc": "内置提示词（只读）",
     "builtin_tag": "内置",
-    "custom_tag": "自定义"
+    "custom_tag": "自定义",
+    "builtin_tools": "内置工具",
+    "builtin_tools_desc": "智能体自带的工具（只读）"
   },
 
   "mcp": {

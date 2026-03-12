@@ -207,7 +207,9 @@
     "default_prompt": "Default System Prompt",
     "default_prompt_desc": "Built-in prompt (read-only)",
     "builtin_tag": "Built-in",
-    "custom_tag": "Custom"
+    "custom_tag": "Custom",
+    "builtin_tools": "Built-in Tools",
+    "builtin_tools_desc": "Tools provided by the agent (read-only)"
   },
 
   "mcp": {

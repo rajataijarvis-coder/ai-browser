@@ -362,6 +362,12 @@ export class EkoService {
     }
 
     try {
+      // Reset aborted context before modify to avoid stale abort signal
+      const context = this.eko.getTask(taskId);
+      if (context?.controller?.signal?.aborted) {
+        context.reset();
+      }
+
       await this.eko.modify(taskId, message);
       this.runningTaskIds.add(taskId);
       return await this.eko.execute(taskId);
