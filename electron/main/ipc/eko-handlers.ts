@@ -65,16 +65,30 @@ export function registerEkoHandlers() {
     }
   });
 
-  ipcMain.handle('eko:workflow-confirm-response', async (event, confirmId: string, confirmed: boolean) => {
+  ipcMain.handle('eko:workflow-confirm-response', async (event, confirmId: string, confirmed: boolean, modifiedWorkflow?: any) => {
     try {
       const context = windowContextManager.getContext(event.sender.id);
       if (!context || !context.ekoService) {
         return errorResponse('EkoService not found for this window');
       }
-      context.ekoService.resolveWorkflowConfirm(confirmId, confirmed);
+      context.ekoService.resolveWorkflowConfirm(confirmId, confirmed, modifiedWorkflow);
       return successResponse({});
     } catch (error: unknown) {
       console.error('[EkoHandlers] workflow-confirm-response error:', error);
+      return errorResponse(error);
+    }
+  });
+
+  ipcMain.handle('eko:regenerate-workflow', (event, taskId: string) => {
+    try {
+      const context = windowContextManager.getContext(event.sender.id);
+      if (!context || !context.ekoService) {
+        return errorResponse('EkoService not found for this window');
+      }
+      context.ekoService.regenerateWorkflow(taskId);
+      return successResponse({});
+    } catch (error: unknown) {
+      console.error('[EkoHandlers] regenerate-workflow error:', error);
       return errorResponse(error);
     }
   });

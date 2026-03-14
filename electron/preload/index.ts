@@ -26,7 +26,8 @@ const api = {
   ekoExecute: (taskId: string) => safeInvoke('eko:execute', taskId),
   ekoCancelTask: (taskId: string) => safeInvoke('eko:cancel-task', taskId),
   ekoPauseTask: (taskId: string, pause: boolean) => safeInvoke('eko:pause-task', taskId, pause),
-  ekoWorkflowConfirmResponse: (confirmId: string, confirmed: boolean) => safeInvoke('eko:workflow-confirm-response', confirmId, confirmed),
+  ekoWorkflowConfirmResponse: (confirmId: string, confirmed: boolean, modifiedWorkflow?: any) => safeInvoke('eko:workflow-confirm-response', confirmId, confirmed, modifiedWorkflow),
+  ekoRegenerateWorkflow: (taskId: string) => safeInvoke('eko:regenerate-workflow', taskId),
   onEkoStreamMessage: (callback: (message: any) => void) => ipcRenderer.on('eko-stream-message', (_, message) => callback(message)),
 
   sendHumanResponse: (response: any) => safeInvoke('eko:human-response', response),

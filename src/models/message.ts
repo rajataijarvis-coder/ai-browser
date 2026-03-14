@@ -77,6 +77,8 @@ export interface WorkflowMessage {
     text: string;
     completed: boolean;
   };
+  confirmId?: string;
+  confirmStatus?: 'pending' | 'confirmed' | 'regenerating';
   timestamp: Date;
 }
 
@@ -98,17 +100,6 @@ export interface AgentGroupMessage {
   };
 }
 
-// Workflow confirm message - requires user confirmation before execution
-export interface WorkflowConfirmMessage {
-  id: string;
-  type: 'workflow_confirm';
-  taskId: string;
-  confirmId: string;
-  workflow: WorkflowData;
-  status: 'pending' | 'confirmed' | 'cancelled';
-  timestamp: Date;
-}
-
 // User message type
 export interface UserMessage {
   id: string;
@@ -118,7 +109,7 @@ export interface UserMessage {
 }
 
 // Display layer message union type
-export type DisplayMessage = WorkflowMessage | AgentGroupMessage | UserMessage | WorkflowConfirmMessage;
+export type DisplayMessage = WorkflowMessage | AgentGroupMessage | UserMessage;
 
 /**
  * Fragment data types for atomic message fragments

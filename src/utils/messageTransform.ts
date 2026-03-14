@@ -1,6 +1,6 @@
 import { StreamCallbackMessage } from '@jarvis-agent/core';
 import { uuidv4 } from '@/utils/uuid';
-import { DisplayMessage, WorkflowMessage, WorkflowConfirmMessage, AgentGroupMessage, UserMessage, ToolAction } from '@/models';
+import { DisplayMessage, WorkflowMessage, AgentGroupMessage, UserMessage, ToolAction } from '@/models';
 import { logger } from '@/utils/logger';
 
 // Message transformation and processing class
@@ -71,23 +71,38 @@ export class MessageProcessor {
       // Add directly to message list in order
       this.messages.push(workflowMsg);
     } else {
-      // Update workflow information
+      // Update workflow information, clear confirm state on regeneration
       workflowMsg.workflow = message.workflow;
+      if (workflowMsg.confirmId) {
+        workflowMsg.confirmId = undefined;
+        workflowMsg.confirmStatus = undefined;
+      }
     }
   }
 
-  // Handle workflow_confirm message
+  // Merge workflow_confirm into existing workflow message
   private handleWorkflowConfirmMessage(message: any) {
-    const confirmMsg: WorkflowConfirmMessage = {
-      id: uuidv4(),
-      type: 'workflow_confirm',
-      taskId: message.taskId,
-      confirmId: message.confirmId,
-      workflow: message.workflow,
-      status: 'pending',
-      timestamp: new Date()
-    };
-    this.messages.push(confirmMsg);
+    const key = `${message.taskId}-${this.executionId}`;
+    const existing = this.workflowMessages.get(key);
+
+    if (existing) {
+      existing.confirmId = message.confirmId;
+      existing.confirmStatus = 'pending';
+      existing.workflow = message.workflow;
+    } else {
+      // Fallback: no existing workflow → create with confirm embedded
+      const workflowMsg: WorkflowMessage = {
+        id: uuidv4(),
+        type: 'workflow',
+        taskId: message.taskId,
+        workflow: message.workflow,
+        confirmId: message.confirmId,
+        confirmStatus: 'pending',
+        timestamp: new Date()
+      };
+      this.workflowMessages.set(key, workflowMsg);
+      this.messages.push(workflowMsg);
+    }
   }
 
   // Handle agent_start message

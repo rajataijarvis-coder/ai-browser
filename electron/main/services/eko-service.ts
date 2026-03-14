@@ -1,4 +1,4 @@
-import { Agent, Eko, SimpleSseMcpClient, type IMcpClient, type LLMs, type StreamCallbackMessage, type AgentContext, type EkoResult } from "@jarvis-agent/core";
+import { Agent, Eko, SimpleSseMcpClient, resetWorkflowXml, type IMcpClient, type LLMs, type StreamCallbackMessage, type AgentContext, type EkoResult } from "@jarvis-agent/core";
 import { BrowserAgent, FileAgent } from "@jarvis-agent/electron";
 import { BrowserWindow, app } from "electron";
 import path from "node:path";
@@ -30,11 +30,17 @@ export class EkoService {
 
   // Store pending workflow confirm requests
   private pendingWorkflowConfirms = new Map<string, {
-    resolve: (result: "confirm" | "cancel") => void;
+    resolve: (result: "confirm" | "cancel" | "regenerate") => void;
   }>();
+
+  // Map confirmId → taskId for regeneration
+  private confirmIdToTaskId = new Map<string, string>();
 
   // Track running task IDs for accurate status checking
   private runningTaskIds: Set<string> = new Set();
+
+  // Store original prompts for regeneration
+  private taskPrompts = new Map<string, string>();
 
   constructor(mainWindow: BrowserWindow, tabManager: TabManager) {
     this.mainWindow = mainWindow;
@@ -361,19 +367,18 @@ export class EkoService {
   }
 
   /** Send workflow_confirm to frontend and wait for user response */
-  private requestWorkflowConfirm(taskId: string): Promise<boolean> {
+  private requestWorkflowConfirm(taskId: string): Promise<"confirm" | "cancel" | "regenerate"> {
     if (!this.eko || !this.mainWindow || this.mainWindow.isDestroyed()) {
-      return Promise.resolve(true);
+      return Promise.resolve("confirm");
     }
 
     const context = this.eko.getTask(taskId);
-    if (!context?.workflow) return Promise.resolve(true);
+    if (!context?.workflow) return Promise.resolve("confirm");
 
     const confirmId = randomUUID();
+    this.confirmIdToTaskId.set(confirmId, taskId);
     return new Promise((resolve) => {
-      this.pendingWorkflowConfirms.set(confirmId, {
-        resolve: (result) => resolve(result === 'confirm'),
-      });
+      this.pendingWorkflowConfirms.set(confirmId, { resolve });
       this.mainWindow.webContents.send('eko-stream-message', {
         type: 'workflow_confirm',
         taskId,
@@ -381,6 +386,22 @@ export class EkoService {
         workflow: context.workflow,
       });
     });
+  }
+
+  /** Generate workflow and loop confirm until confirmed or cancelled */
+  private async generateAndConfirm(taskId: string, prompt: string): Promise<boolean> {
+    if (!this.eko) return false;
+
+    await this.eko.generate(prompt, taskId);
+
+    // Loop: confirm → regenerate → confirm → ...
+    while (true) {
+      const result = await this.requestWorkflowConfirm(taskId);
+      if (result === 'confirm') return true;
+      if (result === 'cancel') return false;
+      // regenerate: re-generate and loop back
+      await this.eko.generate(prompt, taskId);
+    }
   }
 
   async run(message: string): Promise<EkoResult | null> {
@@ -392,12 +413,10 @@ export class EkoService {
       // Create Eko instance with task-specific work directory
       this.eko = this.createEkoForTask(taskId);
       this.runningTaskIds.add(taskId);
+      this.taskPrompts.set(taskId, message);
       this.thinkingStreamIdMap = null;
 
-      // Generate workflow first, then confirm, then execute
-      await this.eko.generate(message, taskId);
-
-      const confirmed = await this.requestWorkflowConfirm(taskId);
+      const confirmed = await this.generateAndConfirm(taskId, message);
       if (!confirmed) {
         return { taskId, success: false, stopReason: 'abort', result: 'User cancelled workflow' };
       }
@@ -411,6 +430,7 @@ export class EkoService {
     } finally {
       if (taskId) {
         this.runningTaskIds.delete(taskId);
+        this.taskPrompts.delete(taskId);
       }
     }
   }
@@ -431,10 +451,17 @@ export class EkoService {
 
       await this.eko.modify(taskId, message);
       this.runningTaskIds.add(taskId);
+      this.taskPrompts.set(taskId, message);
 
-      const confirmed = await this.requestWorkflowConfirm(taskId);
-      if (!confirmed) {
-        return { taskId, success: false, stopReason: 'abort', result: 'User cancelled workflow' };
+      // Loop: confirm → regenerate → confirm → ...
+      while (true) {
+        const result = await this.requestWorkflowConfirm(taskId);
+        if (result === 'cancel') {
+          return { taskId, success: false, stopReason: 'abort', result: 'User cancelled workflow' };
+        }
+        if (result === 'confirm') break;
+        // regenerate
+        await this.eko.modify(taskId, message);
       }
 
       return await this.eko.execute(taskId);
@@ -445,6 +472,7 @@ export class EkoService {
       return null;
     } finally {
       this.runningTaskIds.delete(taskId);
+      this.taskPrompts.delete(taskId);
     }
   }
 
@@ -608,11 +636,37 @@ export class EkoService {
   }
 
   /** Resolve a pending workflow confirm request */
-  public resolveWorkflowConfirm(confirmId: string, confirmed: boolean): void {
+  public resolveWorkflowConfirm(confirmId: string, confirmed: boolean, modifiedWorkflow?: any): void {
     const pending = this.pendingWorkflowConfirms.get(confirmId);
     if (!pending) return;
+
+    // Apply modified workflow agents before confirming
+    if (confirmed && modifiedWorkflow?.agents && this.eko) {
+      const taskId = this.confirmIdToTaskId.get(confirmId);
+      if (taskId) {
+        const context = this.eko.getTask(taskId);
+        if (context?.workflow) {
+          context.workflow.agents = modifiedWorkflow.agents;
+          resetWorkflowXml(context.workflow);
+        }
+      }
+    }
+
     pending.resolve(confirmed ? "confirm" : "cancel");
     this.pendingWorkflowConfirms.delete(confirmId);
+    this.confirmIdToTaskId.delete(confirmId);
+  }
+
+  /** Trigger workflow regeneration by resolving pending confirm */
+  public regenerateWorkflow(taskId: string): void {
+    for (const [cid, pending] of this.pendingWorkflowConfirms) {
+      if (this.confirmIdToTaskId.get(cid) === taskId) {
+        pending.resolve('regenerate');
+        this.pendingWorkflowConfirms.delete(cid);
+        this.confirmIdToTaskId.delete(cid);
+        return;
+      }
+    }
   }
 
   public handleHumanResponse(response: HumanResponseMessage): boolean {

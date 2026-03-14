@@ -32,5 +32,6 @@
   "capture_screenshot": "捕获页面截图",
   "execute_tool": "执行工具操作",
   "executing_tool": "正在执行 {{toolName}}",
-  "retry": "重试"
+  "retry": "重试",
+  "thinking_process": "思考过程"
 }

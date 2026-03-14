@@ -32,5 +32,6 @@
   "capture_screenshot": "Capture page screenshot",
   "execute_tool": "Execute tool operation",
   "executing_tool": "Executing {{toolName}}",
-  "retry": "Retry"
+  "retry": "Retry",
+  "thinking_process": "Thinking Process"
 }
