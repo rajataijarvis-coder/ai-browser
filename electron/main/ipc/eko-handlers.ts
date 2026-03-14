@@ -13,7 +13,7 @@ export function registerEkoHandlers() {
       }
       const result = await context.ekoService.run(message);
       return successResponse({ result });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[EkoHandlers] run error:', error);
       return errorResponse(error);
     }
@@ -29,7 +29,7 @@ export function registerEkoHandlers() {
       }
       const result = await context.ekoService.modify(taskId, message);
       return successResponse({ result });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[EkoHandlers] modify error:', error);
       return errorResponse(error);
     }
@@ -45,7 +45,7 @@ export function registerEkoHandlers() {
       }
       const result = await context.ekoService.execute(taskId);
       return successResponse({ result });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[EkoHandlers] execute error:', error);
       return errorResponse(error);
     }
@@ -59,8 +59,22 @@ export function registerEkoHandlers() {
       }
       const result = context.ekoService.pauseTask(taskId, pause);
       return successResponse({ result });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[EkoHandlers] pause-task error:', error);
+      return errorResponse(error);
+    }
+  });
+
+  ipcMain.handle('eko:workflow-confirm-response', async (event, confirmId: string, confirmed: boolean) => {
+    try {
+      const context = windowContextManager.getContext(event.sender.id);
+      if (!context || !context.ekoService) {
+        return errorResponse('EkoService not found for this window');
+      }
+      context.ekoService.resolveWorkflowConfirm(confirmId, confirmed);
+      return successResponse({});
+    } catch (error: unknown) {
+      console.error('[EkoHandlers] workflow-confirm-response error:', error);
       return errorResponse(error);
     }
   });
@@ -73,9 +87,9 @@ export function registerEkoHandlers() {
         console.error('[EkoHandlers] EkoService not found');
         return errorResponse('EkoService not found for this window');
       }
-      const result = await context.ekoService.cancleTask(taskId);
+      const result = await context.ekoService.cancelTask(taskId);
       return successResponse({ result });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[EkoHandlers] cancel-task error:', error);
       return errorResponse(error);
     }
@@ -91,7 +105,7 @@ export function registerEkoHandlers() {
       }
       const result = context.ekoService.handleHumanResponse(response);
       return successResponse({ result });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[EkoHandlers] human-response error:', error);
       return errorResponse(error);
     }
@@ -107,7 +121,7 @@ export function registerEkoHandlers() {
       }
       const taskContext = context.ekoService.getTaskContext(taskId);
       return successResponse({ taskContext });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[EkoHandlers] get-task-context error:', error);
       return errorResponse(error);
     }
@@ -134,7 +148,7 @@ export function registerEkoHandlers() {
         chainPlanResult
       );
       return successResponse({ taskId });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[EkoHandlers] restore-task error:', error);
       return errorResponse(error);
     }

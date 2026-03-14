@@ -8,7 +8,7 @@
 import { config } from "dotenv";
 import path from "node:path";
 import { app } from "electron";
-import fs from "fs";
+import fs from "node:fs";
 import { SettingsManager } from "./settings-manager";
 
 export class ConfigManager {
@@ -197,10 +197,13 @@ export class ConfigManager {
 
     // Provider-specific customizations
     if (providerId === 'deepseek') {
-      defaultLLM.config.mode = 'regular';
+      const isReasonerModel = selectedModel.includes('reasoner');
+      defaultLLM.config.mode = isReasonerModel ? 'auto' : 'regular';
       defaultLLM.fetch = (url: string, options?: any) => {
         const body = JSON.parse((options?.body as string) || '{}');
-        body.thinking = { type: "disabled" };
+        if (!isReasonerModel) {
+          body.thinking = { type: "disabled" };
+        }
         logInfo('Deepseek request:', selectedModel);
         return fetch(url, { ...options, body: JSON.stringify(body) });
       };

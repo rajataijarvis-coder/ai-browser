@@ -28,6 +28,11 @@ export class EkoService {
   // Store current human_interact toolCallId
   private currentHumanInteractToolCallId: string | null = null;
 
+  // Store pending workflow confirm requests
+  private pendingWorkflowConfirms = new Map<string, {
+    resolve: (result: "confirm" | "cancel") => void;
+  }>();
+
   // Track running task IDs for accurate status checking
   private runningTaskIds: Set<string> = new Set();
 
@@ -37,14 +42,39 @@ export class EkoService {
     this.initializeEko();
   }
 
-  /**
-   * Create stream callback handler
-   */
+  // Remap duplicate thinking streamIds across ReAct loops
+  private thinkingStreamIdMap: { originalId: string; mappedId: string; done: boolean } | null = null;
+
+  /** Ensure each thinking round gets a unique streamId */
+  private deduplicateThinkingStreamId(msg: any): void {
+    const map = this.thinkingStreamIdMap;
+
+    if (!map || map.done) {
+      // First thinking ever, or previous round finished — start new mapping
+      const needsRemap = map?.done && map.originalId === msg.streamId;
+      const mappedId = needsRemap ? randomUUID() : msg.streamId;
+      this.thinkingStreamIdMap = { originalId: msg.streamId, mappedId, done: false };
+      msg.streamId = mappedId;
+    } else {
+      // Ongoing round — apply current mapping
+      msg.streamId = map.mappedId;
+    }
+
+    if (msg.streamDone && this.thinkingStreamIdMap) {
+      this.thinkingStreamIdMap.done = true;
+    }
+  }
+
   private createCallback() {
     return {
       onMessage: (message: StreamCallbackMessage): Promise<void> => {
         if (!this.mainWindow || this.mainWindow.isDestroyed()) {
           return Promise.resolve();
+        }
+
+        // Fix duplicate thinking streamId (e.g. DeepSeek always returns "reasoning-0")
+        if (message.type === 'thinking') {
+          this.deduplicateThinkingStreamId(message as any);
         }
 
         if (message.type === 'tool_use' && message.toolName === 'human_interact' && message.toolCallId) {
@@ -198,15 +228,25 @@ export class EkoService {
     return path.join(this.getBaseWorkPath(), taskId);
   }
 
-  /**
-   * Build plan/compress LLM key arrays from chat settings
-   */
+  /** Build plan/compress LLM key arrays from chat settings */
   private buildOptionalLlmKeys(): { planLlms?: string[]; compressLlms?: string[] } {
     const chatSettings = SettingsManager.getInstance().getAppSettings().chat;
     const result: { planLlms?: string[]; compressLlms?: string[] } = {};
     if (chatSettings.planModel) result.planLlms = ['plan'];
     if (chatSettings.compressModel) result.compressLlms = ['compress'];
     return result;
+  }
+
+  /** Build globalConfig from app settings */
+  private buildGlobalConfig(): Record<string, unknown> {
+    const settings = SettingsManager.getInstance().getAppSettings();
+    const { network, chat } = settings;
+    return {
+      streamFirstTimeout: network.requestTimeout * 1000,
+      streamTokenTimeout: network.streamTimeout * 1000,
+      maxRetryNum: network.retryAttempts,
+      ...(chat.expertMode && { expertMode: true }),
+    };
   }
 
   /**
@@ -239,20 +279,12 @@ export class EkoService {
     // Create custom agents
     agents.push(...this.buildCustomAgents(agentConfig));
 
-    // Get network settings for timeout and retry configuration
-    const settingsManager = SettingsManager.getInstance();
-    const networkSettings = settingsManager.getAppSettings().network;
-
     return new Eko({
       llms,
       agents,
       ...this.buildOptionalLlmKeys(),
       callback: this.createCallback(),
-      globalConfig: {
-        streamFirstTimeout: networkSettings.requestTimeout * 1000,
-        streamTokenTimeout: networkSettings.streamTimeout * 1000,
-        maxRetryNum: networkSettings.retryAttempts
-      }
+      globalConfig: this.buildGlobalConfig(),
     });
   }
 
@@ -271,20 +303,12 @@ export class EkoService {
     const defaultAgents: any[] = this.browserAgent ? [this.browserAgent] : [];
     defaultAgents.push(...this.buildCustomAgents(agentConfig));
 
-    // Get network settings for timeout and retry configuration
-    const settingsManager = SettingsManager.getInstance();
-    const networkSettings = settingsManager.getAppSettings().network;
-
     this.eko = new Eko({
       llms,
       agents: defaultAgents,
       ...this.buildOptionalLlmKeys(),
       callback: this.createCallback(),
-      globalConfig: {
-        streamFirstTimeout: networkSettings.requestTimeout * 1000,
-        streamTokenTimeout: networkSettings.streamTimeout * 1000,
-        maxRetryNum: networkSettings.retryAttempts
-      }
+      globalConfig: this.buildGlobalConfig(),
     });
   }
 
@@ -320,20 +344,12 @@ export class EkoService {
     const reloadAgents: any[] = this.browserAgent ? [this.browserAgent] : [];
     reloadAgents.push(...this.buildCustomAgents(agentConfig));
 
-    // Get network settings for timeout and retry configuration
-    const settingsManager = SettingsManager.getInstance();
-    const networkSettings = settingsManager.getAppSettings().network;
-
     this.eko = new Eko({
       llms,
       agents: reloadAgents,
       ...this.buildOptionalLlmKeys(),
       callback: this.createCallback(),
-      globalConfig: {
-        streamFirstTimeout: networkSettings.requestTimeout * 1000,
-        streamTokenTimeout: networkSettings.streamTimeout * 1000,
-        maxRetryNum: networkSettings.retryAttempts
-      }
+      globalConfig: this.buildGlobalConfig(),
     });
 
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -342,6 +358,29 @@ export class EkoService {
         provider: llms.default?.provider
       });
     }
+  }
+
+  /** Send workflow_confirm to frontend and wait for user response */
+  private requestWorkflowConfirm(taskId: string): Promise<boolean> {
+    if (!this.eko || !this.mainWindow || this.mainWindow.isDestroyed()) {
+      return Promise.resolve(true);
+    }
+
+    const context = this.eko.getTask(taskId);
+    if (!context?.workflow) return Promise.resolve(true);
+
+    const confirmId = randomUUID();
+    return new Promise((resolve) => {
+      this.pendingWorkflowConfirms.set(confirmId, {
+        resolve: (result) => resolve(result === 'confirm'),
+      });
+      this.mainWindow.webContents.send('eko-stream-message', {
+        type: 'workflow_confirm',
+        taskId,
+        confirmId,
+        workflow: context.workflow,
+      });
+    });
   }
 
   async run(message: string): Promise<EkoResult | null> {
@@ -353,12 +392,21 @@ export class EkoService {
       // Create Eko instance with task-specific work directory
       this.eko = this.createEkoForTask(taskId);
       this.runningTaskIds.add(taskId);
+      this.thinkingStreamIdMap = null;
 
-      // Execute with the specified taskId
-      return await this.eko.run(message, taskId);
-    } catch (error: any) {
+      // Generate workflow first, then confirm, then execute
+      await this.eko.generate(message, taskId);
+
+      const confirmed = await this.requestWorkflowConfirm(taskId);
+      if (!confirmed) {
+        return { taskId, success: false, stopReason: 'abort', result: 'User cancelled workflow' };
+      }
+
+      return await this.eko.execute(taskId);
+    } catch (error: unknown) {
       console.error('[EkoService] Run error:', error);
-      this.sendErrorToFrontend(error?.message || 'Unknown error occurred', error);
+      const errMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+      this.sendErrorToFrontend(errMsg, error);
       return null;
     } finally {
       if (taskId) {
@@ -383,10 +431,17 @@ export class EkoService {
 
       await this.eko.modify(taskId, message);
       this.runningTaskIds.add(taskId);
+
+      const confirmed = await this.requestWorkflowConfirm(taskId);
+      if (!confirmed) {
+        return { taskId, success: false, stopReason: 'abort', result: 'User cancelled workflow' };
+      }
+
       return await this.eko.execute(taskId);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[EkoService] Modify error:', error);
-      this.sendErrorToFrontend(error?.message || 'Failed to modify task', error, taskId);
+      const errMsg = error instanceof Error ? error.message : 'Failed to modify task';
+      this.sendErrorToFrontend(errMsg, error, taskId);
       return null;
     } finally {
       this.runningTaskIds.delete(taskId);
@@ -403,9 +458,10 @@ export class EkoService {
     try {
       this.runningTaskIds.add(taskId);
       return await this.eko.execute(taskId);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[EkoService] Execute error:', error);
-      this.sendErrorToFrontend(error?.message || 'Failed to execute task', error, taskId);
+      const errMsg = error instanceof Error ? error.message : 'Failed to execute task';
+      this.sendErrorToFrontend(errMsg, error, taskId);
       return null;
     } finally {
       this.runningTaskIds.delete(taskId);
@@ -420,27 +476,27 @@ export class EkoService {
     return this.eko.pauseTask(taskId, pause);
   }
 
-  async cancleTask(taskId: string): Promise<any> {
+  async cancelTask(taskId: string): Promise<any> {
     if (!this.eko) {
       console.error('[EkoService] Eko service not initialized');
       return { success: false, error: 'Service not initialized' };
     }
 
     try {
-      const result = await this.eko.abortTask(taskId, 'cancle');
+      const result = await this.eko.abortTask(taskId, 'cancel');
       return { success: result };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[EkoService] Failed to cancel task:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
 
-  private sendErrorToFrontend(errorMessage: string, error?: any, taskId?: string): void {
+  private sendErrorToFrontend(errorMessage: string, error?: unknown, taskId?: string): void {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.webContents.send('eko-stream-message', {
         type: 'error',
         error: errorMessage,
-        detail: error?.stack || error?.toString() || errorMessage,
+        detail: error instanceof Error ? error.stack : String(error ?? errorMessage),
         taskId
       });
     }
@@ -551,6 +607,14 @@ export class EkoService {
     });
   }
 
+  /** Resolve a pending workflow confirm request */
+  public resolveWorkflowConfirm(confirmId: string, confirmed: boolean): void {
+    const pending = this.pendingWorkflowConfirms.get(confirmId);
+    if (!pending) return;
+    pending.resolve(confirmed ? "confirm" : "cancel");
+    this.pendingWorkflowConfirms.delete(confirmId);
+  }
+
   public handleHumanResponse(response: HumanResponseMessage): boolean {
     let pending = this.pendingHumanRequests.get(response.requestId);
     let actualRequestId = response.requestId;
@@ -596,6 +660,12 @@ export class EkoService {
     this.pendingHumanRequests.clear();
     this.toolCallIdToRequestId.clear();
     this.currentHumanInteractToolCallId = null;
+
+    // Cancel all pending workflow confirms
+    for (const pending of this.pendingWorkflowConfirms.values()) {
+      pending.resolve("cancel");
+    }
+    this.pendingWorkflowConfirms.clear();
   }
 
   destroy() {

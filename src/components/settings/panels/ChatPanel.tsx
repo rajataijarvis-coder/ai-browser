@@ -134,6 +134,21 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
         <SettingsDivider />
 
+        {/* Advanced */}
+        <div>
+          <Text className="!text-text-01 dark:!text-text-01-dark text-lg font-semibold">{t('chat.advanced')}</Text>
+          <div className="mt-4">
+            <ToggleSetting
+              label={t('chat.expert_mode')}
+              description={t('chat.expert_mode_desc')}
+              checked={settings.expertMode ?? false}
+              onChange={(checked) => handleChange({ expertMode: checked })}
+            />
+          </div>
+        </div>
+
+        <SettingsDivider />
+
         {/* Response Settings */}
         <div>
           <Text className="!text-text-01 dark:!text-text-01-dark text-lg font-semibold">{t('chat.response_settings')}</Text>

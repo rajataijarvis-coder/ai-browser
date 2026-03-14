@@ -30,6 +30,7 @@ declare global {
       onEkoStreamMessage: (callback: (message: any) => void) => void
       ekoCancelTask: (taskId: string) => Promise<IpcResponse<void>>
       ekoPauseTask: (taskId: string, pause: boolean) => Promise<IpcResponse<{ result: boolean }>>
+      ekoWorkflowConfirmResponse: (confirmId: string, confirmed: boolean) => Promise<IpcResponse<void>>
       ekoGetTaskContext: (taskId: string) => Promise<IpcResponse<{
         taskContext: {
           workflow: unknown;

@@ -50,7 +50,15 @@ export interface TextMessage {
   content: string;
 }
 
-export type AgentMessage = ToolAction | TextMessage;
+// Thinking output in workflow
+export interface ThinkingMessage {
+  type: 'thinking';
+  id: string;
+  content: string;
+  completed: boolean;
+}
+
+export type AgentMessage = ToolAction | TextMessage | ThinkingMessage;
 
 /**
  * Workflow data structure
@@ -90,6 +98,17 @@ export interface AgentGroupMessage {
   };
 }
 
+// Workflow confirm message - requires user confirmation before execution
+export interface WorkflowConfirmMessage {
+  id: string;
+  type: 'workflow_confirm';
+  taskId: string;
+  confirmId: string;
+  workflow: WorkflowData;
+  status: 'pending' | 'confirmed' | 'cancelled';
+  timestamp: Date;
+}
+
 // User message type
 export interface UserMessage {
   id: string;
@@ -99,7 +118,7 @@ export interface UserMessage {
 }
 
 // Display layer message union type
-export type DisplayMessage = WorkflowMessage | AgentGroupMessage | UserMessage;
+export type DisplayMessage = WorkflowMessage | AgentGroupMessage | UserMessage | WorkflowConfirmMessage;
 
 /**
  * Fragment data types for atomic message fragments

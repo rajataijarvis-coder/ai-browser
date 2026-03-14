@@ -1,6 +1,7 @@
 import { StreamCallbackMessage } from '@jarvis-agent/core';
 import { uuidv4 } from '@/utils/uuid';
-import { DisplayMessage, WorkflowMessage, AgentGroupMessage, UserMessage, ToolAction } from '@/models';
+import { DisplayMessage, WorkflowMessage, WorkflowConfirmMessage, AgentGroupMessage, UserMessage, ToolAction } from '@/models';
+import { logger } from '@/utils/logger';
 
 // Message transformation and processing class
 export class MessageProcessor {
@@ -16,15 +17,15 @@ export class MessageProcessor {
 
   // Process streaming messages and convert to structured display messages
   public processStreamMessage(message: StreamCallbackMessage): DisplayMessage[] {
-    console.log('MessageProcessor processing message:', message.type, message);
+    logger.debug('Processing message:', 'MessageProcessor', message.type);
 
     switch (message.type) {
       case 'workflow':
         this.handleWorkflowMessage(message);
         break;
-      // case 'thinking':
-      //   this.handleThinkingMessage(message);
-      //   break;
+      case 'workflow_confirm':
+        this.handleWorkflowConfirmMessage(message);
+        break;
       case 'agent_start':
         this.handleAgentStartMessage(message);
         break;
@@ -49,7 +50,7 @@ export class MessageProcessor {
         break;
     }
 
-    console.log('MessageProcessor current message count:', this.messages.length);
+    logger.debug('Current message count:', 'MessageProcessor', this.messages.length);
     return [...this.messages];
   }
 
@@ -75,35 +76,18 @@ export class MessageProcessor {
     }
   }
 
-  // Handle thinking message
-  private handleThinkingMessage(message: any) {
-    const key = `${message.taskId}-${this.executionId}`;
-    let workflowMsg = this.workflowMessages.get(key);
-    
-    if (!workflowMsg) {
-      workflowMsg = {
-        id: uuidv4(),
-        type: 'workflow',
-        taskId: message.taskId,
-        thinking: {
-          text: message.text || '',
-          completed: message.streamDone || false
-        },
-        timestamp: new Date()
-      };
-      this.workflowMessages.set(key, workflowMsg);
-    } else {
-      // Update thinking information
-      if (!workflowMsg.thinking) {
-        workflowMsg.thinking = { text: '', completed: false };
-      }
-      if (message.text) {
-        workflowMsg.thinking.text = message.text;
-      }
-      if (message.streamDone !== undefined) {
-        workflowMsg.thinking.completed = message.streamDone;
-      }
-    }
+  // Handle workflow_confirm message
+  private handleWorkflowConfirmMessage(message: any) {
+    const confirmMsg: WorkflowConfirmMessage = {
+      id: uuidv4(),
+      type: 'workflow_confirm',
+      taskId: message.taskId,
+      confirmId: message.confirmId,
+      workflow: message.workflow,
+      status: 'pending',
+      timestamp: new Date()
+    };
+    this.messages.push(confirmMsg);
   }
 
   // Handle agent_start message
@@ -149,22 +133,29 @@ export class MessageProcessor {
       this.messages.push(agentGroup);
     }
 
-    // Find or create corresponding text message
-    let textMessage = agentGroup.messages.find(msg => 
-      msg.type === 'text' && msg.id === (message.streamId || message.id)
+    const msgType = message.type === 'thinking' ? 'thinking' : 'text';
+    const streamId = message.streamId || message.id;
+
+    // Skip empty text-end messages (e.g. DeepSeek Reasoner emits empty text)
+    if (msgType === 'text' && !message.text && message.streamDone) return;
+
+    // Find or create corresponding message
+    let textMessage = agentGroup.messages.find(msg =>
+      (msg.type === 'text' || msg.type === 'thinking') && msg.id === streamId
     );
-    
+
     if (!textMessage) {
-      textMessage = {
-        type: 'text',
-        id: message.streamId || message.id || uuidv4(),
-        content: message.text || ''
-      };
+      textMessage = msgType === 'thinking'
+        ? { type: 'thinking' as const, id: streamId || uuidv4(), content: message.text || '', completed: message.streamDone ?? false }
+        : { type: 'text' as const, id: streamId || uuidv4(), content: message.text || '' };
       agentGroup.messages.push(textMessage);
     } else {
-      // Update text content (support streaming updates)
-      if (message.text) {
-        (textMessage as any).content = message.text;
+      // Update content (support streaming updates)
+      if (message.text && 'content' in textMessage) {
+        textMessage.content = message.text;
+      }
+      if (msgType === 'thinking' && message.streamDone !== undefined && 'completed' in textMessage) {
+        textMessage.completed = message.streamDone;
       }
     }
   }
@@ -271,7 +262,7 @@ export class MessageProcessor {
 
   // Handle error message
   private handleErrorMessage(message: any) {
-    console.error('Error message received:', message);
+    logger.error('Error message received', message.error, 'MessageProcessor');
 
     // Create error message as AgentGroupMessage with error status
     const errorMsg: AgentGroupMessage = {

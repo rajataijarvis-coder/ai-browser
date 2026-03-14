@@ -24,7 +24,7 @@ export class TaskWindowManager {
     if (existingContext) {
       if (existingContext.executionId) {
         try {
-          await existingContext.ekoService.cancleTask(existingContext.executionId);
+          await existingContext.ekoService.cancelTask(existingContext.executionId);
         } catch (error) {
           console.error('[TaskWindowManager] Failed to terminate old task:', error);
         }

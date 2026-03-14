@@ -54,5 +54,10 @@
   "no_provider_warning": "Please configure AI provider in Settings first",
   "no_provider_tooltip": "Configure AI provider first",
   "pause_task": "Pause",
-  "resume_task": "Resume"
+  "resume_task": "Resume",
+  "workflow_confirm_title": "Workflow Confirmation",
+  "confirm_execute": "Execute",
+  "cancel_workflow": "Cancel",
+  "workflow_confirmed": "Workflow confirmed",
+  "workflow_cancelled": "Workflow cancelled"
 }

@@ -138,6 +138,7 @@ export interface ChatSettings {
   historyRetentionDays: number; // 1 - 365
   planModel?: string;      // Model for task planning (optional)
   compressModel?: string;  // Model for context compression (optional)
+  expertMode?: boolean;    // Auto re-plan when complex tasks fail
 }
 
 // MCP service definition

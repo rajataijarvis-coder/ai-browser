@@ -1,8 +1,10 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
-import { DisplayMessage, AgentMessage, ToolAction, FileAttachment } from '@/models';
+import { DisplayMessage, AgentMessage, ToolAction, FileAttachment, ThinkingMessage } from '@/models';
 import type { HumanResponseMessage } from '@/models/human-interaction';
 import { WorkflowDisplay } from './WorkflowMessage';
+import { WorkflowConfirmCard } from './WorkflowConfirmCard';
+import { ThinkingDisplay } from './ThinkingMessage';
 import { AgentGroupDisplay } from './AgentGroupDisplay';
 import { ToolDisplay } from './ToolMessage';
 
@@ -43,6 +45,10 @@ export const MessageContent: React.FC<MessageDisplayProps> = ({
     return <WorkflowDisplay workflow={message.workflow} />;
   }
 
+  if (message.type === 'workflow_confirm') {
+    return <WorkflowConfirmCard message={message} />;
+  }
+
   if (message.type === 'agent_group') {
     return <AgentGroupDisplay agentMessage={message} onToolClick={onToolClick} onHumanResponse={onHumanResponse} onFileClick={onFileClick} onRetry={onRetry} />
   }
@@ -71,11 +77,15 @@ export const AgentMessageContent: React.FC<AgentMessageContentProps> = ({
     return <ToolDisplay message={message} onToolClick={onToolClick!} onHumanResponse={onHumanResponse} onFileClick={onFileClick} />;
   }
 
+  if (message.type === 'thinking') {
+    const thinkMsg = message as ThinkingMessage;
+    if (!thinkMsg.content?.trim()) return null;
+    return <ThinkingDisplay content={thinkMsg.content} isCompleted={thinkMsg.completed} />;
+  }
+
   if (message.type === 'text') {
     const content = message.content || '';
-    if (!content.trim()) {
-      return null; // Don't display empty content messages
-    }
+    if (!content.trim()) return null;
     return (
       <div className="message-text text-text-12 dark:text-text-12-dark markdown-container">
         <ReactMarkdown>{content}</ReactMarkdown>
