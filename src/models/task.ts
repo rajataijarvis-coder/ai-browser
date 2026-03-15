@@ -6,6 +6,9 @@ export type TaskStatus = 'running' | 'done' | 'error' | 'abort';
 // Task type enum
 export type TaskType = 'normal' | 'scheduled';
 
+// Task interaction mode: chat = ChatAgent, explore = Eko workflow
+export type TaskMode = 'chat' | 'explore';
+
 // File attachment interface
 export interface FileAttachment {
   id: string;              // Unique ID
@@ -42,6 +45,7 @@ export interface Task {
 
   // === Task type identifier (key fields for unified storage) ===
   taskType: TaskType; // Task type: normal=normal task, scheduled=scheduled task execution history
+  taskMode?: TaskMode; // Interaction mode: chat=ChatAgent, explore=Eko workflow
 
   // === Scheduled task execution history related fields ===
   scheduledTaskId?: string; // Associated scheduled task configuration ID (only used when taskType=scheduled)

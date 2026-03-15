@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { App } from 'antd';
 import { EkoResult } from '@jarvis-agent/core';
 import { MessageProcessor } from '@/utils/messageTransform';
-import { Task } from '@/models';
+import { Task, TaskMode } from '@/models';
 import { uuidv4 } from '@/utils/uuid';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/utils/logger';
@@ -11,6 +11,7 @@ interface UseTaskExecutionOptions {
   isHistoryMode: boolean;
   isTaskDetailMode: boolean;
   scheduledTaskIdFromUrl?: string;
+  taskMode: TaskMode;
   taskIdRef: React.RefObject<string>;
   executionIdRef: React.RefObject<string>;
   messageProcessorRef: React.RefObject<MessageProcessor>;
@@ -18,6 +19,7 @@ interface UseTaskExecutionOptions {
   updateTask: (taskId: string, updates: Partial<Task>) => void;
   updateMessages: (taskId: string, messages: any[]) => void;
   setCurrentTaskId: (taskId: string) => void;
+  replaceTaskId: (oldId: string, newId: string) => void;
 }
 
 /**
@@ -27,6 +29,7 @@ export const useTaskExecution = ({
   isHistoryMode,
   isTaskDetailMode,
   scheduledTaskIdFromUrl,
+  taskMode,
   taskIdRef,
   executionIdRef,
   messageProcessorRef,
@@ -34,6 +37,7 @@ export const useTaskExecution = ({
   updateTask,
   updateMessages,
   setCurrentTaskId,
+  replaceTaskId,
 }: UseTaskExecutionOptions) => {
   const { t } = useTranslation('main');
   const { message } = App.useApp();
@@ -68,6 +72,7 @@ export const useTaskExecution = ({
         messages: updatedMessages,
         status: 'running',
         taskType: isTaskDetailMode ? 'scheduled' : 'normal',
+        taskMode,
         scheduledTaskId: isTaskDetailMode ? scheduledTaskIdFromUrl : undefined,
         startTime: new Date(),
       });
@@ -76,29 +81,49 @@ export const useTaskExecution = ({
       updateTask(taskIdRef.current, { status: 'running' });
     }
 
-    let result: EkoResult | null = null;
-
     if (ekoRequest) {
-      await window.api.ekoCancelTask(taskIdRef.current);
+      if (taskMode === 'chat') {
+        await window.api.ekoChatCancel(taskIdRef.current);
+      } else {
+        await window.api.ekoCancelTask(taskIdRef.current);
+      }
       await ekoRequest;
     }
 
     try {
-      const isTemporaryTask = taskIdRef.current.startsWith('temp-');
-      const req = isTemporaryTask
-        ? window.api.ekoRun(text.trim())
-        : window.api.ekoModify(taskIdRef.current, text.trim());
+      if (taskMode === 'chat') {
+        // Chat mode: use stable chatId (not temp-), ChatAgent manages multi-turn
+        const isTemporaryTask = taskIdRef.current.startsWith('temp-');
+        const chatId = isTemporaryTask ? uuidv4() : taskIdRef.current;
 
-      setEkoRequest(req);
-      const response = await req;
+        // Replace temp task immediately so frontend has stable ID
+        if (isTemporaryTask) {
+          replaceTaskId(taskIdRef.current, chatId);
+          taskIdRef.current = chatId;
+          setCurrentTaskId(chatId);
+        }
 
-      if (response?.success && response.data?.result) {
-        result = response.data.result;
-        if (taskIdRef.current) {
-          updateTask(taskIdRef.current, { status: result.stopReason });
+        const messageId = uuidv4();
+        const req = window.api.ekoChatRun(chatId, messageId, text.trim());
+        setEkoRequest(req);
+        await req;
+      } else {
+        // Explore mode: ekoRun (first) / ekoModify (subsequent)
+        const isTemporaryTask = taskIdRef.current.startsWith('temp-');
+        const req = isTemporaryTask
+          ? window.api.ekoRun(text.trim())
+          : window.api.ekoModify(taskIdRef.current, text.trim());
+
+        setEkoRequest(req);
+        const response = await req;
+
+        if (response?.success && response.data?.result) {
+          const result = response.data.result as EkoResult;
+          if (taskIdRef.current) {
+            updateTask(taskIdRef.current, { status: result.stopReason });
+          }
         }
       }
-
     } catch (error) {
       if (taskIdRef.current) {
         updateTask(taskIdRef.current, { status: 'error' });
@@ -110,8 +135,8 @@ export const useTaskExecution = ({
       setEkoRequest(null);
       setIsPaused(false);
 
-      // Save task context for conversation continuation
-      if (result && taskIdRef.current) {
+      // Save task context for explore mode conversation continuation
+      if (taskMode === 'explore' && taskIdRef.current) {
         try {
           const response = await window.api.ekoGetTaskContext(taskIdRef.current);
           if (response?.success && response.data?.taskContext) {
@@ -133,9 +158,9 @@ export const useTaskExecution = ({
 
     return true;
   }, [
-    isHistoryMode, isTaskDetailMode, scheduledTaskIdFromUrl,
+    isHistoryMode, isTaskDetailMode, scheduledTaskIdFromUrl, taskMode,
     taskIdRef, executionIdRef, messageProcessorRef, ekoRequest,
-    createTask, updateTask, updateMessages, setCurrentTaskId, t, message
+    createTask, updateTask, updateMessages, setCurrentTaskId, replaceTaskId, t, message
   ]);
 
   const pauseTask = useCallback(async () => {

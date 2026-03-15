@@ -114,6 +114,7 @@ export const useTaskManager = (): UseTaskManagerReturn => {
       name: `Task ${taskId.slice(0, 8)}`,
       messages: [],
       taskType: 'normal', // Default to normal task
+      taskMode: 'chat', // Default to chat mode
       createdAt: new Date(),
       updatedAt: new Date(),
       ...initialData

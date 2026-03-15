@@ -61,5 +61,9 @@
   "workflow_confirmed": "工作流已确认",
   "workflow_cancelled": "工作流已取消",
   "regenerate_workflow": "重新生成",
-  "add_step": "添加步骤"
+  "add_step": "添加步骤",
+  "mode_chat": "普通对话",
+  "mode_explore": "深度探索",
+  "mode_chat_desc": "快速问答、搜索、网页分析",
+  "mode_explore_desc": "复杂任务、多步骤工作流"
 }

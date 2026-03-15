@@ -168,5 +168,34 @@ export function registerEkoHandlers() {
     }
   });
 
+  // ChatAgent handlers
+  ipcMain.handle('eko:chat-run', async (event, chatId: string, messageId: string, text: string) => {
+    try {
+      const context = windowContextManager.getContext(event.sender.id);
+      if (!context || !context.ekoService) {
+        return errorResponse('EkoService not found for this window');
+      }
+      const result = await context.ekoService.chatRun(chatId, messageId, text);
+      return successResponse({ result });
+    } catch (error: unknown) {
+      console.error('[EkoHandlers] chat-run error:', error);
+      return errorResponse(error);
+    }
+  });
+
+  ipcMain.handle('eko:chat-cancel', async (event, chatId: string) => {
+    try {
+      const context = windowContextManager.getContext(event.sender.id);
+      if (!context || !context.ekoService) {
+        return errorResponse('EkoService not found for this window');
+      }
+      await context.ekoService.chatCancel(chatId);
+      return successResponse({});
+    } catch (error: unknown) {
+      console.error('[EkoHandlers] chat-cancel error:', error);
+      return errorResponse(error);
+    }
+  });
+
   console.log('[IPC] Eko service handlers registered');
 }

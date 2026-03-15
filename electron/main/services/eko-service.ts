@@ -1,4 +1,4 @@
-import { Agent, Eko, SimpleSseMcpClient, resetWorkflowXml, type IMcpClient, type LLMs, type StreamCallbackMessage, type AgentContext, type EkoResult } from "@jarvis-agent/core";
+import { Agent, Eko, ChatAgent, SimpleSseMcpClient, resetWorkflowXml, type IMcpClient, type LLMs, type StreamCallbackMessage, type AgentContext, type EkoResult, type EkoDialogueConfig, type ChatStreamCallback, type ChatStreamMessage } from "@jarvis-agent/core";
 import { BrowserAgent, FileAgent } from "@jarvis-agent/electron";
 import { BrowserWindow, app } from "electron";
 import path from "node:path";
@@ -41,6 +41,10 @@ export class EkoService {
 
   // Store original prompts for regeneration
   private taskPrompts = new Map<string, string>();
+
+  // ChatAgent instance for chat mode
+  private chatAgent: ChatAgent | null = null;
+  private chatAbortControllers = new Map<string, AbortController>();
 
   constructor(mainWindow: BrowserWindow, tabManager: TabManager) {
     this.mainWindow = mainWindow;
@@ -722,8 +726,81 @@ export class EkoService {
     this.pendingWorkflowConfirms.clear();
   }
 
+  /** Create ChatAgent with current config */
+  private createChatAgent(chatId: string): ChatAgent {
+    const configManager = ConfigManager.getInstance();
+    const llms = configManager.getLLMsConfig();
+    const config: EkoDialogueConfig = {
+      llms,
+      agents: this.buildChatAgents(),
+      ...this.buildOptionalLlmKeys(),
+      globalConfig: this.buildGlobalConfig(),
+    };
+    return new ChatAgent(config, chatId);
+  }
+
+  /** Build agents for ChatAgent (browser + custom) */
+  private buildChatAgents(): Agent[] {
+    const agentConfig = ConfigManager.getInstance().getAgentConfig();
+    const agents: Agent[] = [];
+    if (this.browserAgent) agents.push(this.browserAgent);
+    agents.push(...this.buildCustomAgents(agentConfig));
+    return agents;
+  }
+
+  /** Create ChatStreamCallback forwarding to frontend */
+  private createChatCallback(): ChatStreamCallback {
+    return {
+      chatCallback: {
+        onMessage: async (message: ChatStreamMessage) => {
+          if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+          this.mainWindow.webContents.send('eko-stream-message', message);
+        }
+      },
+      taskCallback: this.createCallback(),
+    };
+  }
+
+  /** Run a chat turn */
+  async chatRun(chatId: string, messageId: string, text: string): Promise<{ chatId: string; result: string | null; error?: string }> {
+    try {
+      if (!this.chatAgent || this.chatAgent.getChatContext().getChatId() !== chatId) {
+        this.chatAgent = this.createChatAgent(chatId);
+      }
+
+      this.runningTaskIds.add(chatId);
+      const controller = new AbortController();
+      this.chatAbortControllers.set(chatId, controller);
+
+      const result = await this.chatAgent.chat({
+        messageId,
+        user: [{ type: 'text', text }],
+        callback: this.createChatCallback(),
+        signal: controller.signal,
+      });
+
+      return { chatId, result };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Chat error';
+      console.error('[EkoService] chatRun error:', errMsg);
+      this.sendErrorToFrontend(errMsg, error, chatId);
+      return { chatId, result: null, error: errMsg };
+    } finally {
+      this.runningTaskIds.delete(chatId);
+      this.chatAbortControllers.delete(chatId);
+    }
+  }
+
+  /** Cancel a running chat */
+  async chatCancel(chatId: string): Promise<void> {
+    const controller = this.chatAbortControllers.get(chatId);
+    if (controller) controller.abort();
+  }
+
   destroy() {
     this.rejectAllHumanRequests(new Error('EkoService destroyed'));
     this.eko = null;
+    this.chatAgent = null;
+    this.chatAbortControllers.clear();
   }
 }

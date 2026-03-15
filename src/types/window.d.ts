@@ -48,6 +48,10 @@ declare global {
       ) => Promise<IpcResponse<{ taskId: string | null }>>
       sendHumanResponse: (response: any) => Promise<IpcResponse<void>>
 
+      // ChatAgent APIs
+      ekoChatRun: (chatId: string, messageId: string, text: string) => Promise<IpcResponse<{ result: { chatId: string; result: string | null; error?: string } }>>
+      ekoChatCancel: (chatId: string) => Promise<IpcResponse<void>>
+
       // Unified settings APIs
       getAppSettings: () => Promise<IpcResponse<AppSettings>>
       saveAppSettings: (settings: AppSettings) => Promise<IpcResponse<void>>

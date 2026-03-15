@@ -6,6 +6,7 @@ import { WorkflowDisplay } from './WorkflowMessage';
 import { ThinkingDisplay } from './ThinkingMessage';
 import { AgentGroupDisplay } from './AgentGroupDisplay';
 import { ToolDisplay } from './ToolMessage';
+import { ChatMessageDisplay } from './ChatMessageDisplay';
 
 interface MessageDisplayProps {
   message: DisplayMessage;
@@ -53,6 +54,10 @@ export const MessageContent: React.FC<MessageDisplayProps> = ({
 
   if (message.type === 'agent_group') {
     return <AgentGroupDisplay agentMessage={message} onToolClick={onToolClick} onHumanResponse={onHumanResponse} onFileClick={onFileClick} onRetry={onRetry} />
+  }
+
+  if (message.type === 'chat') {
+    return <ChatMessageDisplay message={message} onToolClick={onToolClick} />;
   }
 
   return null;

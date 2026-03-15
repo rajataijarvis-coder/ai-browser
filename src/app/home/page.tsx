@@ -13,9 +13,12 @@ import { ChromeBrowserBackground } from '@/components/fellou/ChromeBrowserBackgr
 import { useTranslation } from 'react-i18next'
 import { useVoiceInput } from '@/hooks/useVoiceInput'
 import { useHasValidProvider } from '@/hooks/useHasValidProvider'
+import { ModeSwitch } from '@/components/chat/ModeSwitch'
+import { TaskMode } from '@/models'
 
 export default function Home() {
     const [query, setQuery] = useState('')
+    const [taskMode, setTaskMode] = useState<TaskMode>('chat')
     const router = useRouter()
     const { t } = useTranslation('home')
     const { message: antdMessage } = App.useApp()
@@ -64,9 +67,10 @@ export default function Home() {
         }
 
         if (query.trim()) {
-            // Use sessionStorage to implicitly pass message
+            // Use sessionStorage to implicitly pass message and mode
             if (typeof window !== 'undefined') {
                 sessionStorage.setItem('pendingMessage', query.trim())
+                sessionStorage.setItem('pendingMode', taskMode)
             }
             // Directly navigate to main page without URL parameters
             router.push('/main')
@@ -105,9 +109,10 @@ export default function Home() {
                                     placeholder={t('input_placeholder')}
                                     autoSize={false}
                                 />
-                                {/* Model Selector at bottom-left */}
-                                <div className='absolute bottom-3 left-3'>
+                                {/* Model Selector and Mode Switch at bottom-left */}
+                                <div className='absolute bottom-3 left-3 flex items-center gap-1'>
                                     <ModelSelector />
+                                    <ModeSwitch mode={taskMode} onChange={setTaskMode} />
                                 </div>
                                 {/* Action buttons at bottom-right */}
                                 <div className='absolute bottom-3 right-3 flex items-center gap-2'>

@@ -5,12 +5,16 @@ import { SendMessage, CancleTask, PauseTask, ResumeTask } from '@/icons/deepfund
 import { useTranslation } from 'react-i18next';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { logger } from '@/utils/logger';
+import { TaskMode } from '@/models';
+import { ModeSwitch } from './ModeSwitch';
 
 interface ChatInputAreaProps {
   query: string;
   isCurrentTaskRunning: boolean;
   hasValidProvider?: boolean;
   isPaused?: boolean;
+  taskMode?: TaskMode;
+  onModeChange?: (mode: TaskMode) => void;
   onQueryChange: (value: string) => void;
   onSend: () => void;
   onCancel: () => void;
@@ -26,6 +30,8 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   isCurrentTaskRunning,
   hasValidProvider = true,
   isPaused = false,
+  taskMode = 'chat',
+  onModeChange,
   onQueryChange,
   onSend,
   onCancel,
@@ -67,6 +73,12 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         autoSize={{ minRows: 1, maxRows: 4 }}
         className='!bg-transparent border-none !resize-none !outline-none placeholder-text-04-dark focus:!shadow-none !text-base !pt-4 !pb-4 !pl-3.5 !pr-15'
       />
+      {/* Mode switch at bottom-left */}
+      {onModeChange && (
+        <div className="absolute bottom-4 left-3">
+          <ModeSwitch mode={taskMode} onChange={onModeChange} disabled={isCurrentTaskRunning} />
+        </div>
+      )}
       <div className='absolute bottom-4 right-4 flex items-center gap-2'>
         {!isCurrentTaskRunning && (
           <Button

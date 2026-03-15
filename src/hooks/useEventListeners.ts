@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { App } from 'antd';
-import { StreamCallbackMessage } from '@jarvis-agent/core';
+import type { StreamCallbackMessage, ChatStreamMessage } from '@jarvis-agent/core';
 import { Task } from '@/models';
 import { scheduledTaskStorage } from '@/services/scheduled-task-storage';
 import { useTranslation } from 'react-i18next';
@@ -14,7 +14,7 @@ interface UseEventListenersOptions {
   isViewingAttachment: boolean;
   isHistoryMode: boolean;
   updateTask: (taskId: string, updates: Partial<Task>) => void;
-  onStreamMessage: (message: StreamCallbackMessage) => void;
+  onStreamMessage: (message: StreamCallbackMessage | ChatStreamMessage) => void;
   setCurrentUrl: (url: string) => void;
 }
 

@@ -25,6 +25,7 @@ import { HistoryModeHeader } from '@/components/chat/HistoryModeHeader';
 import { DetailPanel } from '@/components/chat/DetailPanel';
 import { PlaybackSpeedControl } from '@/components/chat/PlaybackSpeedControl';
 import { useHasValidProvider } from '@/hooks/useHasValidProvider';
+import { TaskMode } from '@/models';
 import { logger } from '@/utils/logger';
 
 
@@ -73,7 +74,8 @@ export default function main() {
             status: 'done',
             createdAt: new Date(),
             updatedAt: new Date(),
-            taskType: 'normal'
+            taskType: 'normal',
+            taskMode: 'chat',
         },
         autoPlay: false,
         defaultSpeed: 1,
@@ -116,6 +118,7 @@ export default function main() {
 
     // Other local state
     const [query, setQuery] = useState('');
+    const [taskMode, setTaskMode] = useState<TaskMode>('chat');
     const [currentUrl, setCurrentUrl] = useState<string>('');
     const [currentTool, setCurrentTool] = useState<{
         toolName: string;
@@ -203,6 +206,7 @@ export default function main() {
         isHistoryMode,
         isTaskDetailMode,
         scheduledTaskIdFromUrl,
+        taskMode,
         taskIdRef,
         executionIdRef,
         messageProcessorRef,
@@ -210,6 +214,7 @@ export default function main() {
         updateTask,
         updateMessages,
         setCurrentTaskId,
+        replaceTaskId,
     });
 
     // Use event listeners hook
@@ -307,15 +312,20 @@ export default function main() {
         setTerminateCurrentTaskFn(terminateCurrentTask);
     }, [terminateCurrentTask]);
 
-    // Handle implicit message passing from home page
+    // Handle implicit message and mode passing from home page
     useEffect(() => {
         if (typeof window !== 'undefined') {
+            // Restore mode from sessionStorage
+            const pendingMode = sessionStorage.getItem('pendingMode');
+            if (pendingMode === 'chat' || pendingMode === 'explore') {
+                sessionStorage.removeItem('pendingMode');
+                setTaskMode(pendingMode);
+            }
+
             const pendingMessage = sessionStorage.getItem('pendingMessage');
             if (pendingMessage) {
                 logger.debug('Detected pending message', 'MainPage', { pendingMessage });
-                // Clear message to avoid duplicate sending
                 sessionStorage.removeItem('pendingMessage');
-                // Automatically send message
                 setTimeout(() => {
                     sendMessage(pendingMessage);
                 }, 100);
@@ -343,11 +353,17 @@ export default function main() {
             return;
         }
 
-        const success = await terminateCurrentTask();
-        if (success) {
+        if (taskMode === 'chat') {
+            await window.api.ekoChatCancel(currentTaskId);
+            updateTask(currentTaskId, { status: 'done' });
             antdMessage.success(t('task_terminated'));
         } else {
-            antdMessage.error(t('terminate_failed'));
+            const success = await terminateCurrentTask();
+            if (success) {
+                antdMessage.success(t('task_terminated'));
+            } else {
+                antdMessage.error(t('terminate_failed'));
+            }
         }
     };
 
@@ -435,6 +451,8 @@ export default function main() {
                                 query={query}
                                 isCurrentTaskRunning={isCurrentTaskRunning}
                                 hasValidProvider={hasValidProvider}
+                                taskMode={taskMode}
+                                onModeChange={setTaskMode}
                                 onQueryChange={setQuery}
                                 onSend={async () => {
                                     const messageToSend = query.trim();

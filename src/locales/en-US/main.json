@@ -61,5 +61,9 @@
   "workflow_confirmed": "Workflow confirmed",
   "workflow_cancelled": "Workflow cancelled",
   "regenerate_workflow": "Regenerate",
-  "add_step": "Add Step"
+  "add_step": "Add Step",
+  "mode_chat": "Chat",
+  "mode_explore": "Deep Explore",
+  "mode_chat_desc": "Quick Q&A, search, webpage analysis",
+  "mode_explore_desc": "Complex tasks, multi-step workflows"
 }

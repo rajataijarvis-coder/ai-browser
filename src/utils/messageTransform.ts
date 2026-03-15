@@ -1,6 +1,8 @@
 import { StreamCallbackMessage } from '@jarvis-agent/core';
+import type { ChatStreamMessage } from '@jarvis-agent/core';
 import { uuidv4 } from '@/utils/uuid';
-import { DisplayMessage, WorkflowMessage, AgentGroupMessage, UserMessage, ToolAction } from '@/models';
+import { DisplayMessage, WorkflowMessage, AgentGroupMessage, UserMessage, ChatMessage, ToolAction } from '@/models';
+import { ChatMessageProcessor } from './chatMessageProcessor';
 import { logger } from '@/utils/logger';
 
 // Message transformation and processing class
@@ -8,6 +10,7 @@ export class MessageProcessor {
   private messages: DisplayMessage[] = [];
   private workflowMessages = new Map<string, WorkflowMessage>();
   private agentGroups = new Map<string, AgentGroupMessage>();
+  private chatProcessor = new ChatMessageProcessor();
   private executionId: string = '';
 
   // Set execution ID
@@ -16,7 +19,12 @@ export class MessageProcessor {
   }
 
   // Process streaming messages and convert to structured display messages
-  public processStreamMessage(message: StreamCallbackMessage): DisplayMessage[] {
+  public processStreamMessage(message: StreamCallbackMessage | ChatStreamMessage): DisplayMessage[] {
+    // Route chat messages to dedicated handler
+    if (message.streamType === 'chat') {
+      return this.processChatStreamMessage(message);
+    }
+
     logger.debug('Processing message:', 'MessageProcessor', message.type);
 
     switch (message.type) {
@@ -299,6 +307,19 @@ export class MessageProcessor {
     this.messages.push(errorMsg);
   }
 
+  /** Process ChatStreamMessage via ChatMessageProcessor */
+  private processChatStreamMessage(message: ChatStreamMessage): DisplayMessage[] {
+    const isNewMessage = !this.chatProcessor.get(message.messageId);
+    const chatMsg = this.chatProcessor.process(message);
+
+    // Append newly created ChatMessage to display list
+    if (chatMsg && isNewMessage && message.type === 'chat_start') {
+      this.messages.push(chatMsg);
+    }
+
+    return [...this.messages];
+  }
+
   // Get current message list
   public getMessages(): DisplayMessage[] {
     return [...this.messages];
@@ -316,5 +337,6 @@ export class MessageProcessor {
     this.messages = [];
     this.workflowMessages.clear();
     this.agentGroups.clear();
+    this.chatProcessor.clear();
   }
 }

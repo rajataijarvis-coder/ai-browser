@@ -32,6 +32,10 @@ const api = {
 
   sendHumanResponse: (response: any) => safeInvoke('eko:human-response', response),
 
+  // ChatAgent APIs
+  ekoChatRun: (chatId: string, messageId: string, text: string) => safeInvoke('eko:chat-run', chatId, messageId, text),
+  ekoChatCancel: (chatId: string) => safeInvoke('eko:chat-cancel', chatId),
+
   ekoGetTaskContext: (taskId: string) => safeInvoke('eko:get-task-context', taskId),
   ekoRestoreTask: (workflow: any, contextParams?: Record<string, any>, chainPlanRequest?: any, chainPlanResult?: string) =>
     safeInvoke('eko:restore-task', workflow, contextParams, chainPlanRequest, chainPlanResult),

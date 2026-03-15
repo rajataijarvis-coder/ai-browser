@@ -108,8 +108,23 @@ export interface UserMessage {
   timestamp: Date;
 }
 
+// Chat message from ChatAgent (assistant response)
+export interface ChatMessage {
+  id: string;
+  type: 'chat';
+  chatId: string;
+  content: string;
+  tools: ToolAction[];
+  thinkings: ThinkingMessage[];
+  status: 'running' | 'completed' | 'error';
+  error?: string;
+  duration?: number;
+  usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
+  timestamp: Date;
+}
+
 // Display layer message union type
-export type DisplayMessage = WorkflowMessage | AgentGroupMessage | UserMessage;
+export type DisplayMessage = WorkflowMessage | AgentGroupMessage | UserMessage | ChatMessage;
 
 /**
  * Fragment data types for atomic message fragments
