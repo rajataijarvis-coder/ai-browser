@@ -1,7 +1,6 @@
 import React from 'react';
 import { Input, Button, App } from 'antd';
-import { AudioOutlined, AudioMutedOutlined } from '@ant-design/icons';
-import { SendMessage, CancleTask, PauseTask, ResumeTask } from '@/icons/deepfundai-icons';
+import { SendMessage, CancleTask, PauseTask, ResumeTask, MicOn, MicOff } from '@/icons/deepfundai-icons';
 import { useTranslation } from 'react-i18next';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { logger } from '@/utils/logger';
@@ -79,7 +78,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
           <ModeSwitch mode={taskMode} onChange={onModeChange} disabled={isCurrentTaskRunning} />
         </div>
       )}
-      <div className='absolute bottom-4 right-4 flex items-center gap-2'>
+      <div className='absolute bottom-4 right-4 flex items-center gap-0.5'>
         {!isCurrentTaskRunning && (
           <Button
             type='text'
@@ -88,14 +87,14 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
               e.stopPropagation();
               toggleRecording();
             }}
-            className={`!p-0 !w-9 !h-9 !min-w-0 flex items-center justify-center text-lg cursor-pointer rounded-lg transition-all duration-200
+            className={`!p-0 !w-8 !h-8 !min-w-0 flex items-center justify-center text-lg cursor-pointer rounded-lg transition-all duration-200
               ${isRecording
                 ? '!bg-red-500/20 !text-red-500 hover:!bg-red-500/30'
-                : 'hover:!bg-gray-100 dark:hover:!bg-white/10 !text-gray-500 dark:!text-gray-400 hover:!text-primary dark:hover:!text-purple-400'
+                : 'hover:!bg-white/10 !text-white/50 hover:!text-white/80'
               }`}
             title={isRecording ? t('voice_input_stop') : t('voice_input_start')}
           >
-            {isRecording ? <AudioOutlined /> : <AudioMutedOutlined />}
+            {isRecording ? <MicOn /> : <MicOff />}
           </Button>
         )}
         {isCurrentTaskRunning ? (
@@ -104,7 +103,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
               <Button
                 type='text'
                 onClick={onPause}
-                className='!p-0 !w-9 !h-9 !min-w-0 flex items-center justify-center cursor-pointer rounded-lg transition-all duration-200
+                className='!p-0 !w-8 !h-8 !min-w-0 flex items-center justify-center cursor-pointer rounded-lg transition-all duration-200
                   hover:!bg-white/10 !text-white/70 hover:!text-white'
                 title={isPaused ? t('resume_task') : t('pause_task')}
               >
@@ -114,7 +113,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             <Button
               type='text'
               onClick={onCancel}
-              className='!p-0 !w-9 !h-9 !min-w-0 flex items-center justify-center cursor-pointer rounded-lg transition-all duration-200
+              className='!p-0 !w-8 !h-8 !min-w-0 flex items-center justify-center cursor-pointer rounded-lg transition-all duration-200
                 hover:!bg-red-500/20 !text-red-500 dark:!text-red-400 hover:!text-red-600 dark:hover:!text-red-300'
             >
               <CancleTask />
@@ -131,10 +130,10 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
               onSend();
             }}
             disabled={!query.trim() || !hasValidProvider}
-            className={`!p-0 !w-9 !h-9 !min-w-0 flex items-center justify-center text-lg rounded-lg transition-all duration-200
+            className={`!p-0 !w-8 !h-8 !min-w-0 flex items-center justify-center text-lg rounded-lg transition-all duration-200
               ${(!query.trim() || !hasValidProvider)
-                ? '!text-gray-300 dark:!text-gray-600 cursor-not-allowed'
-                : 'cursor-pointer hover:!bg-primary/10 dark:hover:!bg-purple-500/20 !text-primary dark:!text-purple-400 hover:!text-primary-hover dark:hover:!text-purple-300'
+                ? '!text-white/40 cursor-not-allowed'
+                : 'cursor-pointer hover:!bg-white/10 !text-white/50 hover:!text-white/80'
               }`}
             title={!hasValidProvider ? (t('no_provider_tooltip') || 'Configure AI provider first') : ''}
           >

@@ -133,6 +133,43 @@
 }
 
 /* ============================================
+   DROPDOWN MENU (ModeSwitch, etc.)
+   ============================================ */
+
+/* Dark theme dropdown menu */
+.dark .ant-dropdown .ant-dropdown-menu {
+  background: rgba(8, 12, 16, 0.96) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(145, 75, 241, 0.3) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(145, 75, 241, 0.2) !important;
+  padding: 4px !important;
+}
+
+/* Light theme dropdown menu */
+.light .ant-dropdown .ant-dropdown-menu {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1) !important;
+  padding: 4px !important;
+}
+
+/* Dark theme dropdown items */
+.dark .ant-dropdown-menu-item {
+  color: rgba(255, 255, 255, 0.9) !important;
+  border-radius: 8px !important;
+}
+
+.dark .ant-dropdown-menu-item:hover {
+  background: rgba(94, 49, 216, 0.15) !important;
+}
+
+.dark .ant-dropdown-menu-item-selected {
+  background: rgba(94, 49, 216, 0.25) !important;
+}
+
+/* ============================================
    BUTTON OVERRIDES
    ============================================ */
 

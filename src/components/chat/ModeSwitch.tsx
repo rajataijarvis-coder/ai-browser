@@ -48,7 +48,13 @@ export const ModeSwitch: React.FC<ModeSwitchProps> = ({ mode, onChange, disabled
   const label = mode === 'chat' ? t('mode_chat') : t('mode_explore');
 
   return (
-    <Dropdown menu={{ items, selectedKeys: [mode] }} trigger={['click']} disabled={disabled}>
+    <Dropdown
+      menu={{ items, selectedKeys: [mode] }}
+      trigger={['click']}
+      disabled={disabled}
+      placement="top"
+      overlayClassName="mode-switch-dropdown"
+    >
       <button
         className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-gray-500 dark:text-gray-400
           hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer border-none bg-transparent"
