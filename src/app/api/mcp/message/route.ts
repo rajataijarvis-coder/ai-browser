@@ -26,7 +26,14 @@ export async function POST(req: NextRequest) {
 
     logger.debug(`Received ${method} request`, 'McpMessageAPI', { id, params });
 
-    let result: any;
+    // Notifications are fire-and-forget, no response needed.
+    // Return empty 204 (NOT "Accepted") to avoid SimpleSseMcpClient.request() hanging
+    // on `await callback` — its callback Promise is never resolved for notifications.
+    if (method?.startsWith('notifications/')) {
+      return new NextResponse(null, { status: 204 });
+    }
+
+    let result: unknown;
 
     switch (method) {
       case 'initialize':
@@ -85,7 +92,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         jsonrpc: '2.0',
-        id: (await req.json()).id,
+        id: null,
         error: {
           code: -32603,
           message: error instanceof Error ? error.message : 'Internal error'
