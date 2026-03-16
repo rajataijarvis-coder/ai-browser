@@ -157,7 +157,16 @@
     "auto_save_history": "Auto-save chat history",
     "auto_save_history_desc": "Disable to prevent saving chat history (privacy mode)",
     "history_retention_days": "History retention (days)",
-    "history_retention_days_desc": "Tasks older than this will be automatically deleted"
+    "history_retention_days_desc": "Tasks older than this will be automatically deleted",
+    "web_search": "Web Search API",
+    "web_search_desc": "Provide search capabilities for Chat mode AI search tool (not the browser address bar search engine)",
+    "search_provider": "Search Provider",
+    "search_provider_desc": "Choose a search API provider (Tavily offers 1,000 free requests/month)",
+    "search_provider_none": "Not configured (search unavailable)",
+    "search_api_key": "API Key",
+    "search_api_key_desc": "API key for the search service",
+    "search_base_url": "Base URL",
+    "search_base_url_desc": "SearXNG instance URL"
   },
 
   "agent": {

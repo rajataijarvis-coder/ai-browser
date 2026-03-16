@@ -25,6 +25,9 @@ export interface ITabManager {
   closeTab(tabId: number): boolean;
   navigateTo(url: string): Promise<void>;
 
+  // Lookup
+  getViewByTabId(tabId: number): WebContentsView | null;
+
   // Lifecycle
   cleanupAllExceptLast(): void;
   destroyAll(): void;
@@ -200,6 +203,13 @@ export class TabManager implements ITabManager {
    */
   getActiveTabId(): number {
     return this.activeTabId;
+  }
+
+  /**
+   * Get WebContentsView by tab ID
+   */
+  getViewByTabId(tabId: number): WebContentsView | null {
+    return this.tabs.get(tabId)?.view ?? null;
   }
 
   /**

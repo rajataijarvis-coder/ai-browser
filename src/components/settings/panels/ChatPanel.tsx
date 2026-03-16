@@ -7,11 +7,11 @@
 
 import React, { useMemo } from 'react';
 import { MessageOutlined } from '@ant-design/icons';
-import { Typography } from 'antd';
+import { Input, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { SliderSetting, ToggleSetting, InputSetting, SelectSetting } from '../components';
 import { SettingsDivider } from '@/components/ui';
-import { ChatSettings, ProviderConfig, SelectOptionGroup } from '@/models/settings';
+import { ChatSettings, ProviderConfig, SelectOptionGroup, SearchProviderType } from '@/models/settings';
 import { getDefaultChatSettings } from '@/config/settings-defaults';
 
 const { Title, Paragraph, Text } = Typography;
@@ -129,6 +129,84 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               showSearch
               allowClear
             />
+          </div>
+        </div>
+
+        <SettingsDivider />
+
+        {/* Web Search API */}
+        <div>
+          <Text className="!text-text-01 dark:!text-text-01-dark text-lg font-semibold">{t('chat.web_search')}</Text>
+          <div className="text-sm text-text-12 dark:text-text-12-dark mt-1 mb-4">{t('chat.web_search_desc')}</div>
+          <div className="space-y-4">
+            <SelectSetting
+              label={t('chat.search_provider')}
+              description={t('chat.search_provider_desc')}
+              value={settings.searchProvider?.provider || ''}
+              options={[
+                { label: 'Tavily', value: 'tavily' },
+                { label: 'Serper (Google)', value: 'serper' },
+                { label: 'SearXNG', value: 'searxng' },
+              ]}
+              onChange={(value) => {
+                if (!value) {
+                  handleChange({ searchProvider: undefined });
+                } else {
+                  handleChange({
+                    searchProvider: {
+                      ...settings.searchProvider,
+                      provider: value as SearchProviderType,
+                    },
+                  });
+                }
+              }}
+              placeholder={t('chat.search_provider_none')}
+              allowClear
+            />
+
+            {settings.searchProvider?.provider && settings.searchProvider.provider !== 'searxng' && (
+              <div className="mb-6">
+                <div className="mb-2">
+                  <Text className="!text-text-01 dark:!text-text-01-dark font-medium">{t('chat.search_api_key')}</Text>
+                  <div className="text-sm text-text-12 dark:text-text-12-dark mt-1">{t('chat.search_api_key_desc')}</div>
+                </div>
+                <Input.Password
+                  value={settings.searchProvider?.apiKey || ''}
+                  onChange={(e) =>
+                    handleChange({
+                      searchProvider: {
+                        ...settings.searchProvider!,
+                        apiKey: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder="Enter API key"
+                  className="w-64"
+                />
+              </div>
+            )}
+
+            {settings.searchProvider?.provider === 'searxng' && (
+              <div className="mb-6">
+                <div className="mb-2">
+                  <Text className="!text-text-01 dark:!text-text-01-dark font-medium">{t('chat.search_base_url')}</Text>
+                  <div className="text-sm text-text-12 dark:text-text-12-dark mt-1">{t('chat.search_base_url_desc')}</div>
+                </div>
+                <Input
+                  value={settings.searchProvider?.baseUrl || ''}
+                  onChange={(e) =>
+                    handleChange({
+                      searchProvider: {
+                        ...settings.searchProvider!,
+                        baseUrl: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder="https://searxng.example.com"
+                  className="w-64"
+                />
+              </div>
+            )}
           </div>
         </div>
 

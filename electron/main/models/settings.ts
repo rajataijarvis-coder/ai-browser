@@ -130,6 +130,15 @@ export interface GeneralSettings {
   };
 }
 
+// Search provider types for web search
+export type SearchProviderType = 'tavily' | 'serper' | 'searxng';
+
+export interface SearchProviderConfig {
+  provider: SearchProviderType;
+  apiKey?: string;         // Required for tavily/serper
+  baseUrl?: string;        // SearXNG instance URL
+}
+
 export interface ChatSettings {
   temperature: number; // 0.0 - 2.0
   maxTokens: number; // 1 - 128000 (capped by model limit)
@@ -139,6 +148,7 @@ export interface ChatSettings {
   planModel?: string;      // Model for task planning (optional)
   compressModel?: string;  // Model for context compression (optional)
   expertMode?: boolean;    // Auto re-plan when complex tasks fail
+  searchProvider?: SearchProviderConfig; // Web search engine config
 }
 
 // MCP service definition

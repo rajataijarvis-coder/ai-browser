@@ -157,7 +157,16 @@
     "auto_save_history": "自动保存对话历史",
     "auto_save_history_desc": "关闭后将不保存聊天历史（隐私模式）",
     "history_retention_days": "历史保留天数",
-    "history_retention_days_desc": "超过此天数的任务将被自动删除"
+    "history_retention_days_desc": "超过此天数的任务将被自动删除",
+    "web_search": "Web 搜索 API",
+    "web_search_desc": "为 Chat 模式的 AI 搜索工具提供搜索能力（非浏览器地址栏搜索引擎）",
+    "search_provider": "搜索服务",
+    "search_provider_desc": "选择搜索 API 提供商（Tavily 提供 1000 次/月免费额度）",
+    "search_provider_none": "未配置（搜索功能不可用）",
+    "search_api_key": "API Key",
+    "search_api_key_desc": "搜索服务的 API 密钥",
+    "search_base_url": "服务地址",
+    "search_base_url_desc": "SearXNG 实例的访问地址"
   },
 
   "agent": {

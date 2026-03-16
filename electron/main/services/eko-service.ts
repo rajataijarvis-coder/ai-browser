@@ -1,4 +1,4 @@
-import { Agent, Eko, ChatAgent, SimpleSseMcpClient, resetWorkflowXml, type IMcpClient, type LLMs, type StreamCallbackMessage, type AgentContext, type EkoResult, type EkoDialogueConfig, type ChatStreamCallback, type ChatStreamMessage } from "@jarvis-agent/core";
+import { Agent, Eko, ChatAgent, SimpleSseMcpClient, resetWorkflowXml, global as ekoGlobal, type IMcpClient, type LLMs, type StreamCallbackMessage, type AgentContext, type EkoResult, type EkoDialogueConfig, type ChatStreamCallback, type ChatStreamMessage } from "@jarvis-agent/core";
 import { BrowserAgent, FileAgent } from "@jarvis-agent/electron";
 import { BrowserWindow, app } from "electron";
 import path from "node:path";
@@ -7,6 +7,8 @@ import { randomUUID } from "node:crypto";
 import { ConfigManager } from "../utils/config-manager";
 import { SettingsManager } from "../utils/settings-manager";
 import { TabManager } from "./tab-manager";
+import { AppChatService } from "./app-chat-service";
+import { AppBrowserService } from "./app-browser-service";
 import type { AgentMcpConfig, McpServiceConfig } from "../models/settings";
 import type { HumanRequestMessage, HumanResponseMessage, HumanInteractionContext } from "../../../src/models/human-interaction";
 
@@ -46,10 +48,33 @@ export class EkoService {
   private chatAgent: ChatAgent | null = null;
   private chatAbortControllers = new Map<string, AbortController>();
 
+  // Global services for eko-core
+  private appChatService: AppChatService;
+
   constructor(mainWindow: BrowserWindow, tabManager: TabManager) {
     this.mainWindow = mainWindow;
     this.tabManager = tabManager;
+    this.appChatService = this.initializeGlobalServices();
     this.initializeEko();
+  }
+
+  /** Inject ChatService & BrowserService into eko-core global (only once) */
+  private initializeGlobalServices(): AppChatService {
+    // Only set global services if not already initialized,
+    // to avoid task windows overwriting main window's services.
+    if (!ekoGlobal.browserService) {
+      ekoGlobal.browserService = new AppBrowserService(this.tabManager);
+    }
+
+    if (!ekoGlobal.chatService) {
+      const searchConfig = SettingsManager.getInstance().getAppSettings().chat.searchProvider;
+      const chatService = new AppChatService(searchConfig);
+      ekoGlobal.chatService = chatService;
+      console.log("[EkoService] Global services injected");
+      return chatService;
+    }
+
+    return ekoGlobal.chatService as AppChatService;
   }
 
   // Remap duplicate thinking streamIds across ReAct loops
@@ -116,11 +141,18 @@ export class EkoService {
               const url = activeView.webContents.getURL();
               const fileName = args.fileName || args.path || 'file.txt';
               if (!url.includes('file-view')) {
-                activeView.webContents.loadURL(`http://localhost:5173/file-view`);
-                activeView.webContents.once('did-finish-load', () => {
-                  activeView.webContents.send('file-updated', 'code', args.content, fileName);
+                let resolved = false;
+                const done = (sendFile: boolean) => {
+                  if (resolved) return;
+                  resolved = true;
+                  clearTimeout(timer);
+                  if (sendFile) activeView.webContents.send('file-updated', 'code', args.content, fileName);
                   resolve();
-                });
+                };
+                const timer = setTimeout(() => done(true), 5000);
+                activeView.webContents.once('did-finish-load', () => done(true));
+                activeView.webContents.once('did-fail-load', () => done(false));
+                activeView.webContents.loadURL(`http://localhost:5173/file-view`);
               } else {
                 activeView.webContents.send('file-updated', 'code', args.content, fileName);
                 resolve();
@@ -218,7 +250,7 @@ export class EkoService {
     const services: McpServiceConfig[] = mcpSettings?.services ?? [];
 
     return services
-      .filter(service => agentMcpConfig[service.id]?.enabled)
+      .filter(service => agentMcpConfig[service.id]?.enabled && service.url)
       .map(service => new SimpleSseMcpClient(service.url));
   }
 
@@ -252,6 +284,7 @@ export class EkoService {
     const settings = SettingsManager.getInstance().getAppSettings();
     const { network, chat } = settings;
     return {
+      maxOutputTokens: chat.maxTokens,
       streamFirstTimeout: network.requestTimeout * 1000,
       streamTokenTimeout: network.streamTimeout * 1000,
       maxRetryNum: network.retryAttempts,
@@ -338,6 +371,10 @@ export class EkoService {
 
     this.rejectAllHumanRequests(new Error('EkoService configuration reloaded'));
 
+    // Hot-swap search provider
+    const searchConfig = SettingsManager.getInstance().getAppSettings().chat.searchProvider;
+    this.appChatService.updateSearchProvider(searchConfig);
+
     const configManager = ConfigManager.getInstance();
     const llms: LLMs = configManager.getLLMsConfig();
     const agentConfig = configManager.getAgentConfig();
@@ -408,7 +445,7 @@ export class EkoService {
     }
   }
 
-  async run(message: string): Promise<EkoResult | null> {
+  async run(message: string, skipConfirm = false): Promise<EkoResult | null> {
     let taskId: string | null = null;
     try {
       // Generate unique taskId for this execution
@@ -420,9 +457,13 @@ export class EkoService {
       this.taskPrompts.set(taskId, message);
       this.thinkingStreamIdMap = null;
 
-      const confirmed = await this.generateAndConfirm(taskId, message);
-      if (!confirmed) {
-        return { taskId, success: false, stopReason: 'abort', result: 'User cancelled workflow' };
+      if (skipConfirm) {
+        await this.eko.generate(message, taskId);
+      } else {
+        const confirmed = await this.generateAndConfirm(taskId, message);
+        if (!confirmed) {
+          return { taskId, success: false, stopReason: 'abort', result: 'User cancelled workflow' };
+        }
       }
 
       return await this.eko.execute(taskId);
@@ -797,10 +838,32 @@ export class EkoService {
     if (controller) controller.abort();
   }
 
-  destroy() {
+  /** Clean up all tasks, MCP connections, and internal state */
+  async destroy(): Promise<void> {
+    // Abort and delete all Eko tasks (triggers MCP client.close() in Agent.run finally block)
+    if (this.eko) {
+      for (const taskId of this.eko.getAllTaskId()) {
+        try { this.eko.deleteTask(taskId); } catch {}
+      }
+    }
+
+    // Cancel all running chats
+    for (const controller of this.chatAbortControllers.values()) {
+      controller.abort();
+    }
+
+    // Clean up ChatAgent from global chatMap
+    if (this.chatAgent) {
+      const chatId = this.chatAgent.getChatContext().getChatId();
+      ekoGlobal.chatMap?.delete(chatId);
+    }
+
     this.rejectAllHumanRequests(new Error('EkoService destroyed'));
     this.eko = null;
+    this.browserAgent = null;
     this.chatAgent = null;
     this.chatAbortControllers.clear();
+    this.runningTaskIds.clear();
+    this.taskPrompts.clear();
   }
 }
