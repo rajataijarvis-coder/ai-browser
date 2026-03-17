@@ -11,6 +11,7 @@ Built with [Next.js](https://nextjs.org) and [Electron](https://electronjs.org).
 > - This project is for **learning purposes**. There may be bugs and issues - your understanding is appreciated.
 > - **Windows users**: Building on Windows may require multiple attempts to succeed. If the build fails, try running the build command again.
 > - **macOS recommended**: The macOS version provides a better user experience. Limited resources have been allocated to Windows optimization.
+> - **AI Provider note**: Due to limited resources and network restrictions (no access to Claude, OpenAI, etc.), this project is primarily developed and tested with **DeepSeek** models. Other providers are supported but may have less thorough testing coverage. Community contributions for other providers are welcome!
 
 ## Tech Stack
 
