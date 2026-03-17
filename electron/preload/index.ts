@@ -25,9 +25,16 @@ const api = {
   ekoModify: (taskId: string, message: string) => safeInvoke('eko:modify', taskId, message),
   ekoExecute: (taskId: string) => safeInvoke('eko:execute', taskId),
   ekoCancelTask: (taskId: string) => safeInvoke('eko:cancel-task', taskId),
+  ekoPauseTask: (taskId: string, pause: boolean) => safeInvoke('eko:pause-task', taskId, pause),
+  ekoWorkflowConfirmResponse: (confirmId: string, confirmed: boolean, modifiedWorkflow?: any) => safeInvoke('eko:workflow-confirm-response', confirmId, confirmed, modifiedWorkflow),
+  ekoRegenerateWorkflow: (taskId: string) => safeInvoke('eko:regenerate-workflow', taskId),
   onEkoStreamMessage: (callback: (message: any) => void) => ipcRenderer.on('eko-stream-message', (_, message) => callback(message)),
 
   sendHumanResponse: (response: any) => safeInvoke('eko:human-response', response),
+
+  // ChatAgent APIs
+  ekoChatRun: (chatId: string, messageId: string, text: string) => safeInvoke('eko:chat-run', chatId, messageId, text),
+  ekoChatCancel: (chatId: string) => safeInvoke('eko:chat-cancel', chatId),
 
   ekoGetTaskContext: (taskId: string) => safeInvoke('eko:get-task-context', taskId),
   ekoRestoreTask: (workflow: any, contextParams?: Record<string, any>, chainPlanRequest?: any, chainPlanResult?: string) =>
@@ -52,9 +59,10 @@ const api = {
   // Agent configuration APIs
   getAgentConfig: () => safeInvoke('agent:get-config'),
   saveAgentConfig: (config: any) => safeInvoke('agent:save-config', config),
-  getMcpTools: () => safeInvoke('agent:get-mcp-tools'),
-  setMcpToolEnabled: (toolName: string, enabled: boolean) => safeInvoke('agent:set-mcp-tool-enabled', toolName, enabled),
   reloadAgentConfig: () => safeInvoke('agent:reload-config'),
+
+  // MCP service APIs
+  fetchMcpTools: (url: string) => safeInvoke('settings:fetch-mcp-tools', url),
 
   // Detail view control APIs
   setDetailViewVisible: (visible: boolean) => safeInvoke('set-detail-view-visible', visible),

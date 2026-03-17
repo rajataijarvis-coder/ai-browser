@@ -50,7 +50,15 @@ export interface TextMessage {
   content: string;
 }
 
-export type AgentMessage = ToolAction | TextMessage;
+// Thinking output in workflow
+export interface ThinkingMessage {
+  type: 'thinking';
+  id: string;
+  content: string;
+  completed: boolean;
+}
+
+export type AgentMessage = ToolAction | TextMessage | ThinkingMessage;
 
 /**
  * Workflow data structure
@@ -69,6 +77,8 @@ export interface WorkflowMessage {
     text: string;
     completed: boolean;
   };
+  confirmId?: string;
+  confirmStatus?: 'pending' | 'confirmed' | 'regenerating';
   timestamp: Date;
 }
 
@@ -98,8 +108,23 @@ export interface UserMessage {
   timestamp: Date;
 }
 
+// Chat message from ChatAgent (assistant response)
+export interface ChatMessage {
+  id: string;
+  type: 'chat';
+  chatId: string;
+  content: string;
+  tools: ToolAction[];
+  thinkings: ThinkingMessage[];
+  status: 'running' | 'completed' | 'error';
+  error?: string;
+  duration?: number;
+  usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
+  timestamp: Date;
+}
+
 // Display layer message union type
-export type DisplayMessage = WorkflowMessage | AgentGroupMessage | UserMessage;
+export type DisplayMessage = WorkflowMessage | AgentGroupMessage | UserMessage | ChatMessage;
 
 /**
  * Fragment data types for atomic message fragments

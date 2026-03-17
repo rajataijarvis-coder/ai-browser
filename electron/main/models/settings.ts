@@ -130,29 +130,73 @@ export interface GeneralSettings {
   };
 }
 
+// Search provider types for web search
+export type SearchProviderType = 'tavily' | 'serper' | 'searxng';
+
+export interface SearchProviderConfig {
+  provider: SearchProviderType;
+  apiKey?: string;         // Required for tavily/serper
+  baseUrl?: string;        // SearXNG instance URL
+}
+
 export interface ChatSettings {
   temperature: number; // 0.0 - 2.0
   maxTokens: number; // 1 - 128000 (capped by model limit)
   showTokenUsage: boolean;
   autoSaveHistory: boolean;
   historyRetentionDays: number; // 1 - 365
+  planModel?: string;      // Model for task planning (optional)
+  compressModel?: string;  // Model for context compression (optional)
+  expertMode?: boolean;    // Auto re-plan when complex tasks fail
+  searchProvider?: SearchProviderConfig; // Web search engine config
+}
+
+// MCP service definition
+export interface McpServiceConfig {
+  id: string;
+  name: string;
+  url: string;
+  tools: McpToolInfo[];
+}
+
+export interface McpToolInfo {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+}
+
+export interface AgentMcpConfig {
+  [serviceId: string]: {
+    enabled: boolean;
+    tools: { [toolName: string]: { enabled: boolean } };
+  };
+}
+
+export interface McpSettings {
+  services: McpServiceConfig[];
+}
+
+export interface CustomAgentConfig {
+  id: string;
+  name: string;
+  description: string;
+  planDescription: string;
+  enabled: boolean;
+  mcpServices: AgentMcpConfig;
 }
 
 export interface AgentConfig {
-  mcpTools: {
-    [toolName: string]: {
-      enabled: boolean;
-      config?: Record<string, any>;
-    };
-  };
   browserAgent: {
     enabled: boolean;
     customPrompt?: string;
+    mcpServices: AgentMcpConfig;
   };
   fileAgent: {
     enabled: boolean;
     customPrompt?: string;
+    mcpServices: AgentMcpConfig;
   };
+  customAgents: CustomAgentConfig[];
 }
 
 export interface UISettings {
@@ -184,6 +228,7 @@ export interface AppSettings {
   general: GeneralSettings;
   chat: ChatSettings;
   agent: AgentConfig;
+  mcp: McpSettings;
   ui: UISettings;
   network: NetworkSettings;
 }

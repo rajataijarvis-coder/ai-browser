@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Spin } from 'antd';
-import { LoadingOutlined } from '@ant-design/icons';
+import { LoadingOutlined, DownOutlined, RightOutlined } from '@ant-design/icons';
 import { Executing, Browser, Search, DataAnalysis } from '@/icons/deepfundai-icons';
 import { ToolAction, FileAttachment } from '@/models';
 import type { HumanRequestMessage, HumanResponseMessage } from '@/models/human-interaction';
@@ -43,7 +43,7 @@ export const ToolDisplay: React.FC<ToolDisplayProps> = ({
     // Convert ToolAction to HumanRequestMessage format
     const humanMessage: HumanRequestMessage = {
       type: 'human_interaction',
-      requestId: message.id, // Use toolId as requestId
+      requestId: message.id, // Use toolCallId as requestId
       taskId: params.taskId,
       agentName: message.agentName,
       interactType: (params.interactType as any) || 'request_help',
@@ -139,35 +139,81 @@ export const ToolDisplay: React.FC<ToolDisplayProps> = ({
     onFileClick(fileAttachment);
   };
 
+  const [expanded, setExpanded] = useState(false);
+  const hasDetail = message.status === 'completed' && (message.params || message.result);
+
+  // Format detail content for display
+  const formatDetail = (data: unknown): string => {
+    if (data === null || data === undefined) return '';
+    if (typeof data === 'string') return data;
+    try { return JSON.stringify(data, null, 2); } catch { return String(data); }
+  };
+
+  const toggleExpand = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpanded(prev => !prev);
+  };
+
   return (
-    <div className="inline-flex items-center gap-2">
-      <div
-        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs cursor-pointer transition-all duration-200
-          bg-gray-50 dark:bg-tool-call-dark
-          border border-gray-200 dark:border-border-message-dark
-          text-gray-600 dark:text-text-12-dark
-          hover:bg-gray-100 dark:hover:bg-white/10
-          hover:border-purple-300 dark:hover:border-purple-500/30
-          hover:shadow-sm dark:hover:shadow-[0_0_12px_rgba(145,75,241,0.15)]"
-        onClick={() => onToolClick(message)}
-      >
-        {getToolIcon(message.toolName)}
-        <span>{t('executing_tool', { toolName: message.toolName || 'tool' })}</span>
-        {/* Only show loading indicator when executing */}
-        {isExecuting && (
-          <Spin indicator={<LoadingOutlined spin style={{ color: 'currentColor', fontSize: 14 }} />} size="small" />
+    <div className="flex flex-col gap-1">
+      <div className="inline-flex items-center gap-2">
+        <div
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs cursor-pointer transition-all duration-200
+            bg-gray-50 dark:bg-tool-call-dark
+            border border-gray-200 dark:border-border-message-dark
+            text-gray-600 dark:text-text-12-dark
+            hover:bg-gray-100 dark:hover:bg-white/10
+            hover:border-purple-300 dark:hover:border-purple-500/30
+            hover:shadow-sm dark:hover:shadow-[0_0_12px_rgba(145,75,241,0.15)]"
+          onClick={() => onToolClick(message)}
+        >
+          {getToolIcon(message.toolName)}
+          <span>{t('executing_tool', { toolName: message.toolName || 'tool' })}</span>
+          {isExecuting && (
+            <Spin indicator={<LoadingOutlined spin style={{ color: 'currentColor', fontSize: 14 }} />} size="small" />
+          )}
+        </div>
+
+        {/* Expand/collapse toggle — outside onToolClick to avoid event conflict */}
+        {hasDetail && (
+          <span
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors cursor-pointer"
+            onClick={toggleExpand}
+          >
+            {expanded ? <DownOutlined style={{ fontSize: 10 }} /> : <RightOutlined style={{ fontSize: 10 }} />}
+          </span>
+        )}
+
+        {/* File link for file_write tool */}
+        {fileInfo && (
+          <div
+            className="text-xs cursor-pointer transition-colors duration-200 flex items-center gap-1
+              text-blue-500 dark:text-blue-400
+              hover:text-blue-600 dark:hover:text-blue-300"
+            onClick={handleFileLinkClick}
+          >
+            {fileInfo.fileName}
+          </div>
         )}
       </div>
 
-      {/* Display file link for file_write tool when completed - on the same line */}
-      {fileInfo && (
-        <div
-          className="text-xs cursor-pointer transition-colors duration-200 flex items-center gap-1
-            text-blue-500 dark:text-blue-400
-            hover:text-blue-600 dark:hover:text-blue-300"
-          onClick={handleFileLinkClick}
-        >
-          📄 {fileInfo.fileName}
+      {/* Expandable detail panel */}
+      {expanded && hasDetail && (
+        <div className="ml-2 px-3 py-2 rounded-lg text-xs font-mono whitespace-pre-wrap break-all max-h-60 overflow-y-auto
+          bg-gray-50 dark:bg-[#1a1a2e] border border-gray-200 dark:border-border-message-dark
+          text-gray-600 dark:text-gray-400">
+          {message.params && (
+            <div className="mb-2">
+              <span className="text-gray-400 dark:text-gray-500">Params:</span>
+              <pre className="mt-1">{formatDetail(message.params)}</pre>
+            </div>
+          )}
+          {message.result && (
+            <div>
+              <span className="text-gray-400 dark:text-gray-500">Result:</span>
+              <pre className="mt-1">{formatDetail(message.result)}</pre>
+            </div>
+          )}
         </div>
       )}
     </div>

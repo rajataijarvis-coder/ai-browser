@@ -1,24 +1,40 @@
 /**
  * Chat settings panel
- * INPUT: Settings from parent component
- * OUTPUT: Temperature, tokens, streaming, and other chat parameters
+ * INPUT: Settings and providers from parent component
+ * OUTPUT: Temperature, tokens, plan/compress model, and other chat parameters
  * POSITION: Third tab in settings window
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { MessageOutlined } from '@ant-design/icons';
-import { Typography } from 'antd';
+import { Input, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
-import { SliderSetting, ToggleSetting, InputSetting } from '../components';
+import { SliderSetting, ToggleSetting, InputSetting, SelectSetting } from '../components';
 import { SettingsDivider } from '@/components/ui';
-import { ChatSettings } from '@/models/settings';
+import { ChatSettings, ProviderConfig, SelectOptionGroup, SearchProviderType } from '@/models/settings';
 import { getDefaultChatSettings } from '@/config/settings-defaults';
 
 const { Title, Paragraph, Text } = Typography;
 
 interface ChatPanelProps {
   settings?: ChatSettings;
+  providers?: Record<string, ProviderConfig>;
   onSettingsChange?: (settings: ChatSettings) => void;
+}
+
+/**
+ * Build grouped model options from providers
+ */
+function buildModelOptions(providers: Record<string, ProviderConfig>): SelectOptionGroup[] {
+  return Object.values(providers)
+    .filter(p => p.enabled && p.models.length > 0)
+    .map(p => ({
+      label: p.name,
+      options: p.models
+        .filter(m => m.enabled)
+        .map(m => ({ label: m.name || m.id, value: `${p.id}:${m.id}` })),
+    }))
+    .filter(g => g.options.length > 0);
 }
 
 /**
@@ -26,6 +42,7 @@ interface ChatPanelProps {
  */
 export const ChatPanel: React.FC<ChatPanelProps> = ({
   settings = getDefaultChatSettings(),
+  providers = {},
   onSettingsChange
 }) => {
   const { t } = useTranslation('settings');
@@ -35,6 +52,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       onSettingsChange({ ...settings, ...updates });
     }
   };
+
+  const modelOptions = useMemo(() => buildModelOptions(providers), [providers]);
 
   return (
     <div className="flex flex-col h-full">
@@ -79,6 +98,129 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               max={128000}
               onChange={(value) => handleChange({ maxTokens: value || 8192 })}
               placeholder="1-128000 (depends on model limit)"
+            />
+          </div>
+        </div>
+
+        <SettingsDivider />
+
+        {/* Cost Optimization */}
+        <div>
+          <Text className="!text-text-01 dark:!text-text-01-dark text-lg font-semibold">{t('chat.cost_optimization')}</Text>
+          <div className="mt-4 space-y-4">
+            <SelectSetting
+              label={t('chat.plan_model')}
+              description={t('chat.plan_model_desc')}
+              value={settings.planModel || ''}
+              groupedOptions={modelOptions}
+              onChange={(value) => handleChange({ planModel: value || undefined })}
+              placeholder={t('chat.use_default_model')}
+              showSearch
+              allowClear
+            />
+
+            <SelectSetting
+              label={t('chat.compress_model')}
+              description={t('chat.compress_model_desc')}
+              value={settings.compressModel || ''}
+              groupedOptions={modelOptions}
+              onChange={(value) => handleChange({ compressModel: value || undefined })}
+              placeholder={t('chat.use_default_model')}
+              showSearch
+              allowClear
+            />
+          </div>
+        </div>
+
+        <SettingsDivider />
+
+        {/* Web Search API */}
+        <div>
+          <Text className="!text-text-01 dark:!text-text-01-dark text-lg font-semibold">{t('chat.web_search')}</Text>
+          <div className="text-sm text-text-12 dark:text-text-12-dark mt-1 mb-4">{t('chat.web_search_desc')}</div>
+          <div className="space-y-4">
+            <SelectSetting
+              label={t('chat.search_provider')}
+              description={t('chat.search_provider_desc')}
+              value={settings.searchProvider?.provider || ''}
+              options={[
+                { label: 'Tavily', value: 'tavily' },
+                { label: 'Serper (Google)', value: 'serper' },
+                { label: 'SearXNG', value: 'searxng' },
+              ]}
+              onChange={(value) => {
+                if (!value) {
+                  handleChange({ searchProvider: undefined });
+                } else {
+                  handleChange({
+                    searchProvider: {
+                      ...settings.searchProvider,
+                      provider: value as SearchProviderType,
+                    },
+                  });
+                }
+              }}
+              placeholder={t('chat.search_provider_none')}
+              allowClear
+            />
+
+            {settings.searchProvider?.provider && settings.searchProvider.provider !== 'searxng' && (
+              <div className="mb-6">
+                <div className="mb-2">
+                  <Text className="!text-text-01 dark:!text-text-01-dark font-medium">{t('chat.search_api_key')}</Text>
+                  <div className="text-sm text-text-12 dark:text-text-12-dark mt-1">{t('chat.search_api_key_desc')}</div>
+                </div>
+                <Input.Password
+                  value={settings.searchProvider?.apiKey || ''}
+                  onChange={(e) =>
+                    handleChange({
+                      searchProvider: {
+                        ...settings.searchProvider!,
+                        apiKey: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder="Enter API key"
+                  className="w-64"
+                />
+              </div>
+            )}
+
+            {settings.searchProvider?.provider === 'searxng' && (
+              <div className="mb-6">
+                <div className="mb-2">
+                  <Text className="!text-text-01 dark:!text-text-01-dark font-medium">{t('chat.search_base_url')}</Text>
+                  <div className="text-sm text-text-12 dark:text-text-12-dark mt-1">{t('chat.search_base_url_desc')}</div>
+                </div>
+                <Input
+                  value={settings.searchProvider?.baseUrl || ''}
+                  onChange={(e) =>
+                    handleChange({
+                      searchProvider: {
+                        ...settings.searchProvider!,
+                        baseUrl: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder="https://searxng.example.com"
+                  className="w-64"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <SettingsDivider />
+
+        {/* Advanced */}
+        <div>
+          <Text className="!text-text-01 dark:!text-text-01-dark text-lg font-semibold">{t('chat.advanced')}</Text>
+          <div className="mt-4">
+            <ToggleSetting
+              label={t('chat.expert_mode')}
+              description={t('chat.expert_mode_desc')}
+              checked={settings.expertMode ?? false}
+              onChange={(checked) => handleChange({ expertMode: checked })}
             />
           </div>
         </div>

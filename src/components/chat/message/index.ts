@@ -17,6 +17,9 @@ export { ThinkingDisplay } from './ThinkingMessage';
 export { StepAgentDisplay } from './AgentMessage';
 export { ToolDisplay } from './ToolMessage';
 export { AgentGroupDisplay } from './AgentGroupDisplay';
+export { ChatMessageDisplay } from './ChatMessageDisplay';
+export { EditableStepNode } from './EditableStepNode';
+export { WorkflowActions } from './WorkflowActions';
 
 // Default export for backward compatibility
 export { default } from './MessageList';

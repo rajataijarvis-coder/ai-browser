@@ -52,5 +52,18 @@
   "preview": "Preview",
   "no_message_to_retry": "No message to retry",
   "no_provider_warning": "Please configure AI provider in Settings first",
-  "no_provider_tooltip": "Configure AI provider first"
+  "no_provider_tooltip": "Configure AI provider first",
+  "pause_task": "Pause",
+  "resume_task": "Resume",
+  "workflow_confirm_title": "Workflow Confirmation",
+  "confirm_execute": "Execute",
+  "cancel_workflow": "Cancel",
+  "workflow_confirmed": "Workflow confirmed",
+  "workflow_cancelled": "Workflow cancelled",
+  "regenerate_workflow": "Regenerate",
+  "add_step": "Add Step",
+  "mode_chat": "Chat",
+  "mode_explore": "Deep Explore",
+  "mode_chat_desc": "Quick Q&A, search, webpage analysis",
+  "mode_explore_desc": "Complex tasks, multi-step workflows"
 }

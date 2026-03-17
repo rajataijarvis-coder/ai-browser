@@ -25,6 +25,8 @@ import { HistoryModeHeader } from '@/components/chat/HistoryModeHeader';
 import { DetailPanel } from '@/components/chat/DetailPanel';
 import { PlaybackSpeedControl } from '@/components/chat/PlaybackSpeedControl';
 import { useHasValidProvider } from '@/hooks/useHasValidProvider';
+import { TaskMode } from '@/models';
+import { logger } from '@/utils/logger';
 
 
 export default function main() {
@@ -72,7 +74,8 @@ export default function main() {
             status: 'done',
             createdAt: new Date(),
             updatedAt: new Date(),
-            taskType: 'normal'
+            taskType: 'normal',
+            taskMode: 'chat',
         },
         autoPlay: false,
         defaultSpeed: 1,
@@ -115,6 +118,13 @@ export default function main() {
 
     // Other local state
     const [query, setQuery] = useState('');
+    const [taskMode, setTaskMode] = useState<TaskMode>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('taskMode');
+            if (saved === 'chat' || saved === 'explore') return saved;
+        }
+        return 'chat';
+    });
     const [currentUrl, setCurrentUrl] = useState<string>('');
     const [currentTool, setCurrentTool] = useState<{
         toolName: string;
@@ -198,10 +208,11 @@ export default function main() {
     });
 
     // Use task execution hook
-    const { sendMessage } = useTaskExecution({
+    const { sendMessage, isPaused, pauseTask } = useTaskExecution({
         isHistoryMode,
         isTaskDetailMode,
         scheduledTaskIdFromUrl,
+        taskMode,
         taskIdRef,
         executionIdRef,
         messageProcessorRef,
@@ -209,6 +220,7 @@ export default function main() {
         updateTask,
         updateMessages,
         setCurrentTaskId,
+        replaceTaskId,
     });
 
     // Use event listeners hook
@@ -238,12 +250,12 @@ export default function main() {
         // Check if task has workflow
         if (!currentTask.workflow) {
             antdMessage.error(t('task_missing_context'));
-            console.error('Task missing workflow:', currentTask);
+            logger.error('Task missing workflow', undefined, 'MainPage', { currentTask });
             return;
         }
 
         // Restore task context
-        const result = await (window.api as any).ekoRestoreTask(
+        const result = await window.api.ekoRestoreTask(
             currentTask.workflow,
             currentTask.contextParams || {},
             currentTask.chainPlanRequest,
@@ -265,11 +277,11 @@ export default function main() {
 
         // Reset detail panel: hide playback screenshot
         setCurrentHistoryIndex(-1);
-        await (window.api as any).hideHistoryView?.();
+        await window.api.hideHistoryView();
 
         // Restore lastUrl and navigate detail view to initial address
         setShowDetail(false);
-        await (window.api as any).setDetailViewVisible?.(false);
+        await window.api.setDetailViewVisible(false);
 
         // Restore tool history
         setToolHistory(currentTask.toolHistory || []);
@@ -306,21 +318,17 @@ export default function main() {
         setTerminateCurrentTaskFn(terminateCurrentTask);
     }, [terminateCurrentTask]);
 
-    // Handle implicit message passing from home page
+    // Handle pending message from home page
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const pendingMessage = sessionStorage.getItem('pendingMessage');
-            if (pendingMessage) {
-                console.log('Detected pending message:', pendingMessage);
-                // Clear message to avoid duplicate sending
-                sessionStorage.removeItem('pendingMessage');
-                // Automatically send message
-                setTimeout(() => {
-                    sendMessage(pendingMessage);
-                }, 100);
-            }
+        if (typeof window === 'undefined') return;
+
+        const pendingMessage = sessionStorage.getItem('pendingMessage');
+        if (pendingMessage) {
+            sessionStorage.removeItem('pendingMessage');
+            setTimeout(() => sendMessage(pendingMessage), 100);
         }
-    }, [sendMessage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Monitor history task selection from Zustand store
     useEffect(() => {
@@ -342,11 +350,17 @@ export default function main() {
             return;
         }
 
-        const success = await terminateCurrentTask();
-        if (success) {
+        if (taskMode === 'chat') {
+            await window.api.ekoChatCancel(currentTaskId);
+            updateTask(currentTaskId, { status: 'done' });
             antdMessage.success(t('task_terminated'));
         } else {
-            antdMessage.error(t('terminate_failed'));
+            const success = await terminateCurrentTask();
+            if (success) {
+                antdMessage.success(t('task_terminated'));
+            } else {
+                antdMessage.error(t('terminate_failed'));
+            }
         }
     };
 
@@ -434,6 +448,8 @@ export default function main() {
                                 query={query}
                                 isCurrentTaskRunning={isCurrentTaskRunning}
                                 hasValidProvider={hasValidProvider}
+                                taskMode={taskMode}
+                                onModeChange={(mode: TaskMode) => { setTaskMode(mode); localStorage.setItem('taskMode', mode); }}
                                 onQueryChange={setQuery}
                                 onSend={async () => {
                                     const messageToSend = query.trim();
@@ -449,6 +465,8 @@ export default function main() {
                                     await sendMessage(messageToSend);
                                 }}
                                 onCancel={handleCancelTask}
+                                isPaused={isPaused}
+                                onPause={pauseTask}
                             />
                         )}
                     </div>

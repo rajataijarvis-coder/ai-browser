@@ -1,10 +1,13 @@
 import { useCallback } from 'react';
-import { StreamCallbackMessage } from '@jarvis-agent/core/dist/types';
-import { Task, ToolAction } from '@/models';
+import type { StreamCallbackMessage, ChatStreamMessage } from '@jarvis-agent/core';
+import { Task, ToolAction, UserMessage } from '@/models';
+
+type StreamMessage = StreamCallbackMessage | ChatStreamMessage;
 import { MessageProcessor } from '@/utils/messageTransform';
 import { useTranslation } from 'react-i18next';
 import { uuidv4 } from '@/utils/uuid';
 import { detectFileType } from '@/utils/fileDetection';
+import { logger } from '@/utils/logger';
 
 interface UseMessageHandlersOptions {
   isHistoryMode: boolean;
@@ -92,7 +95,7 @@ export const useMessageHandlers = ({
         try {
           fileInfo = JSON.parse(toolResult.content[0].text);
         } catch (e) {
-          console.error('[useMessageHandlers] Failed to parse file info:', e);
+          logger.error('Failed to parse file info', e, 'useMessageHandlers');
           return;
         }
       }
@@ -121,7 +124,7 @@ export const useMessageHandlers = ({
         }
       }
     } catch (error) {
-      console.error('[useMessageHandlers] Failed to handle file attachment:', error);
+      logger.error('Failed to handle file attachment', error, 'useMessageHandlers');
     }
   }, [taskIdRef, tasks, updateTask]);
 
@@ -149,28 +152,60 @@ export const useMessageHandlers = ({
         addToolHistory(taskIdRef.current, toolMessage);
       }
     } catch (error) {
-      console.error('[useMessageHandlers] Screenshot failed:', error);
+      logger.error('Screenshot failed', error, 'useMessageHandlers');
     }
   }, [taskIdRef, showDetailAgents, toolHistory, setToolHistory, addToolHistory]);
 
-  const onMessage = useCallback((message: StreamCallbackMessage) => {
+  const onMessage = useCallback((message: StreamMessage) => {
     if (isHistoryMode) return;
 
-    const updatedMessages = messageProcessorRef.current.processStreamMessage(message);
+    // Handle ChatStreamMessage (streamType === 'chat')
+    if (message.streamType === 'chat') {
+      const chatMsg = message as ChatStreamMessage;
+
+      const updatedMessages = messageProcessorRef.current.processStreamMessage(chatMsg);
+      const taskIdToUpdate = taskIdRef.current;
+      if (taskIdToUpdate) {
+        const updates: Partial<Task> = { messages: updatedMessages };
+
+        // Set task name from user's first message
+        if (chatMsg.type === 'chat_start') {
+          const existingTask = tasks.find(t => t.id === taskIdToUpdate);
+          if (existingTask?.name?.startsWith('Task ') || existingTask?.name === 'Processing...') {
+            const userMsgs = existingTask.messages?.filter(m => m.type === 'user');
+            const firstInput = (userMsgs?.[0] as UserMessage | undefined)?.content;
+            updates.name = firstInput?.slice(0, 30) || `Chat ${taskIdToUpdate.slice(0, 8)}`;
+          }
+        }
+
+        // Update task status on chat_end
+        if (chatMsg.type === 'chat_end') {
+          updates.status = chatMsg.error ? 'error' : 'done';
+          if (chatMsg.error) updates.error = chatMsg.error;
+        }
+
+        updateTask(taskIdToUpdate, updates);
+      }
+      return;
+    }
+
+    // Below handles AgentStreamMessage only
+    const agentMsg = message as StreamCallbackMessage;
+    const updatedMessages = messageProcessorRef.current.processStreamMessage(agentMsg);
 
     const isCurrentTaskTemporary = taskIdRef.current?.startsWith('temp-');
-    const hasRealTaskId = message.taskId && !message.taskId.startsWith('temp-');
+    const hasRealTaskId = agentMsg.taskId && !agentMsg.taskId.startsWith('temp-');
 
     if (isCurrentTaskTemporary && hasRealTaskId) {
       const tempTaskId = taskIdRef.current;
-      const realTaskId = message.taskId;
+      const realTaskId = agentMsg.taskId;
 
       replaceTaskId(tempTaskId, realTaskId);
       taskIdRef.current = realTaskId;
 
       updateTask(realTaskId, {
-        ...(message.type === 'workflow' && message.workflow?.name
-          ? { name: message.workflow.name, workflow: message.workflow }
+        ...(agentMsg.type === 'workflow' && agentMsg.workflow?.name
+          ? { name: agentMsg.workflow.name, workflow: agentMsg.workflow }
           : {}),
         messages: updatedMessages
       });
@@ -178,11 +213,11 @@ export const useMessageHandlers = ({
       return;
     }
 
-    if (message.taskId && !currentTaskId && !message.taskId.startsWith('temp-')) {
-      setCurrentTaskId(message.taskId);
+    if (agentMsg.taskId && !currentTaskId && !agentMsg.taskId.startsWith('temp-')) {
+      setCurrentTaskId(agentMsg.taskId);
     }
 
-    const taskIdToUpdate = message.taskId || taskIdRef.current;
+    const taskIdToUpdate = agentMsg.taskId || taskIdRef.current;
     if (taskIdToUpdate) {
       const existingTask = tasks.find(task => task.id === taskIdToUpdate);
 
@@ -191,12 +226,12 @@ export const useMessageHandlers = ({
           messages: updatedMessages
         };
 
-        if (message.type === 'workflow' && message.workflow?.name) {
-          updates.name = message.workflow.name;
-          updates.workflow = message.workflow;
+        if (agentMsg.type === 'workflow' && agentMsg.workflow?.name) {
+          updates.name = agentMsg.workflow.name;
+          updates.workflow = agentMsg.workflow;
         }
 
-        if (message.type === 'error') {
+        if (agentMsg.type === 'error') {
           updates.status = 'error';
         }
 
@@ -204,10 +239,10 @@ export const useMessageHandlers = ({
       } else {
         // Task doesn't exist, create it
         const initialData: Partial<Task> = {
-          name: (message.type === 'workflow' && message.workflow?.name)
-            ? message.workflow.name
+          name: (agentMsg.type === 'workflow' && agentMsg.workflow?.name)
+            ? agentMsg.workflow.name
             : `Task ${taskIdToUpdate.slice(0, 8)}`,
-          workflow: (message.type === 'workflow' && message.workflow) ? message.workflow : undefined,
+          workflow: (agentMsg.type === 'workflow' && agentMsg.workflow) ? agentMsg.workflow : undefined,
           messages: updatedMessages,
           status: 'running',
           taskType: isTaskDetailMode ? 'scheduled' : 'normal',
@@ -221,29 +256,31 @@ export const useMessageHandlers = ({
       }
     }
 
-    if (message.type.includes('tool')) {
+    if (agentMsg.type.includes('tool')) {
+      // Tool event — toolName exists on all tool_* union members
+      const toolMsg = agentMsg as StreamCallbackMessage & { toolName?: string };
       setCurrentTool({
-        toolName: (message as any).toolName || 'Unknown tool',
-        operation: getToolOperation(message),
-        status: getToolStatus(message.type)
+        toolName: toolMsg.toolName || 'Unknown tool',
+        operation: getToolOperation(agentMsg),
+        status: getToolStatus(agentMsg.type)
       });
 
-      if (showDetailAgents.includes(message.agentName)) {
+      if (showDetailAgents.includes(agentMsg.agentName)) {
         setShowDetail(true);
       }
 
-      if (message.type === 'tool_result') {
+      if (agentMsg.type === 'tool_result') {
         handleToolComplete({
           type: 'tool',
-          id: message.toolId,
-          toolName: message.toolName,
+          id: agentMsg.toolCallId,
+          toolName: agentMsg.toolName,
           status: 'completed',
           timestamp: new Date(),
-          agentName: message.agentName
+          agentName: agentMsg.agentName
         });
 
-        if (message.toolName === 'file_write' && message.toolResult) {
-          handleFileAttachment(message.toolResult);
+        if (agentMsg.toolName === 'file_write' && agentMsg.toolResult) {
+          handleFileAttachment(agentMsg.toolResult);
         }
       }
     }

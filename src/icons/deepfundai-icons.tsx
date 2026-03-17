@@ -1,3 +1,9 @@
+/**
+ * INPUT: antd Icon component, React SVG primitives
+ * OUTPUT: Custom icon components (DeepThinking, SendMessage, CancleTask, PauseTask, ResumeTask, etc.)
+ * POSITION: Centralized custom SVG icon library for the application
+ */
+
 import React from 'react';
 import Icon from '@ant-design/icons';
 import type { GetProps } from 'antd';
@@ -52,30 +58,6 @@ const BrowserSvg = () => (
                             <rect id="rectangle" x="0" y="0" width="16" height="16"/>
                             <g id="group" transform="translate(2.400000, 2.400000)" stroke="#828FA1" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.2">
                                 <path d="M5.6,3.08 C6.991768,3.08 8.12,4.208232 8.12,5.6 C8.12,6.991768 6.991768,8.12 5.6,8.12 C4.208232,8.12 3.08,6.991768 3.08,5.6 C3.08,4.208232 4.208232,3.08 5.6,3.08 Z M5.6,3.08 L10.602312,3.08 M3.64,10.847424 L7.180292,7.56 M0.56,3.156076 L3.605028,7.15456 M5.6,11.2 C8.692796,11.2 11.2,8.692796 11.2,5.6 C11.2,2.507204 8.692796,0 5.6,0 C2.507204,0 0,2.507204 0,5.6 C0,8.692796 2.507204,11.2 5.6,11.2 Z" id="shape"/>
-                            </g>
-                        </g>
-                    </g>
-                </g>
-            </g>
-        </g>
-    </g>
-</svg>
-);
-
-// Voice icon
-const VoiceSvg = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" viewBox="0 0 24 24" version="1.1">
-    <g id="8-26version" stroke="none" strokeWidth="1" fill="none" fillRule="evenodd" opacity="0.4">
-        <g id="04.generate-page" transform="translate(-673.000000, -996.000000)">
-            <g id="group-39" transform="translate(40.000000, 920.000000)">
-                <g id="group-81backup" transform="translate(0.000000, -0.000000)">
-                    <g id="group-8" transform="translate(589.000000, 74.000000)">
-                        <g id="group-50backup-5" transform="translate(42.000000, 0.000000)">
-                            <g id="group-15" transform="translate(2.000000, 2.000000)">
-                                <rect id="rectangle" x="0" y="0" width="24" height="24"/>
-                                <g id="group" transform="translate(5.000000, 2.375000)" fill="#B9C8EC" fillRule="nonzero">
-                                    <path d="M13.182243,8.43208332 C13.6338777,8.43208332 14,8.80123316 14,9.25660256 C13.9888607,12.8688803 11.2917247,15.8421727 7.81764626,16.2546373 L7.817,17.6 L10.7398754,17.6009615 C11.1915101,17.6009615 11.5576324,17.9701114 11.5576324,18.4254808 C11.5576324,18.8808502 11.1915101,19.25 10.7398754,19.25 L3.2601246,19.25 C2.80848988,19.25 2.44236759,18.8808502 2.44236759,18.4254808 C2.44236759,17.9701114 2.80848988,17.6009615 3.2601246,17.6009615 L6.182,17.6 L6.18235374,16.2546373 C2.70827534,15.8421727 0.0111392956,12.8688803 0,9.25660256 C0,8.80123316 0.366122284,8.43208332 0.817757009,8.43208332 C1.26939173,8.43208332 1.63551402,8.80123316 1.63551402,9.25660256 C1.63551402,12.2040231 3.973699,14.6008154 6.88187447,14.6641633 C6.92066106,14.6573515 6.95999506,14.6544551 7,14.6544551 C7.04000494,14.6544551 7.07933894,14.6573515 7.11780699,14.6629476 L7,14.6654487 C9.9627238,14.6654487 12.364486,12.2438258 12.364486,9.25660256 C12.364486,8.80123316 12.7306083,8.43208332 13.182243,8.43208332 Z M7,8.81072992e-13 C9.1256941,8.81072992e-13 10.8489096,1.73746521 10.8489096,3.88073717 L10.8489096,9.31157052 C10.8489096,11.4548425 9.1256941,13.1923077 7,13.1923077 C4.8743059,13.1923077 3.15109035,11.4548425 3.15109035,9.31157052 L3.15109035,3.88073717 C3.15109035,1.73746521 4.8743059,8.81072992e-13 7,8.81072992e-13 Z M7,1.649 C5.79564074,1.64903846 4.81931465,2.63343801 4.81931465,3.8477564 L4.81931465,9.27858975 C4.81931465,10.5111229 5.81028565,11.5102884 7.03271028,11.5102884 C8.25513491,11.5102884 9.24610587,10.5111229 9.24610591,9.27858975 L9.24610591,3.88073717 C9.25531004,3.2802896 9.02053322,2.70217401 8.59630684,2.28066875 C8.2145031,1.90131401 7.70914996,1.67852656 7.1779062,1.65094826 L7,1.649 Z" id="shape-combined"/>
-                                </g>
                             </g>
                         </g>
                     </g>
@@ -213,18 +195,12 @@ const StepUpDownSvg = () => (
 </svg>
 );
 
-// Send message
+// Send message - paper plane
 const SendMessageSvg = () => (
-<svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" version="1.1">
-    <g id="version-8-26" stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
-        <g id="group-50backup-4" transform="translate(-2.000000, -2.000000)">
-            <g id="group-48" transform="translate(2.000000, 2.000000)">
-                <rect id="rectangle" x="0" y="0" width="24" height="24"/>
-                <g id="group" transform="translate(4.790000, 4.790000)" fill="currentColor" fillRule="nonzero">
-                    <path d="M13.51,2.14939178e-12 L13.5685333,0.00188235154 C13.5992997,0.00385835865 13.6299848,0.00739010778 13.6604608,0.0124775997 C13.6870333,0.0168259005 13.7124359,0.0222202554 13.7374232,0.0286492089 C13.7940248,0.0435440144 13.8463405,0.0623895205 13.8969202,0.0861499211 C13.9164224,0.0953087037 13.9349452,0.104837417 13.9530855,0.114968986 C13.9633501,0.120690704 13.9741605,0.127009816 13.9848646,0.133570621 C14.0082566,0.14794342 14.0301674,0.16276131 14.051371,0.178479185 C14.0624761,0.186729017 14.074326,0.195960683 14.0859937,0.20552625 C14.1041989,0.220394288 14.1210033,0.235250602 14.1372377,0.250700328 C14.1424367,0.255784663 14.1479014,0.261115619 14.1533149,0.266529037 L14.1727633,0.28642194 C14.1891381,0.303819126 14.2048356,0.321861052 14.2198136,0.34050559 L14.1533149,0.266529037 C14.1899088,0.303122522 14.2227346,0.34205723 14.2517924,0.382851008 C14.2641589,0.400125684 14.2760399,0.418115471 14.2872844,0.436536193 C14.2952554,0.44969886 14.3028148,0.462831303 14.3100198,0.476105131 C14.3218416,0.497716 14.3327714,0.519930294 14.3428002,0.542631774 C14.3491239,0.557288427 14.3550466,0.57174794 14.3605816,0.586321038 C14.367805,0.60481777 14.3744135,0.624065604 14.3803829,0.643592492 C14.3855728,0.661324771 14.3903201,0.678766711 14.3945398,0.696309674 C14.4042194,0.735569396 14.411128,0.775859345 14.4153018,0.816957786 L14.42,0.91 L14.42,9.81952589 C14.42,10.322105 14.0125791,10.7295259 13.51,10.7295259 C13.0388321,10.7295259 12.6512993,10.3714411 12.6046982,9.9125681 L12.6,9.81952589 L12.599,3.107 L1.55347096,14.1534634 C1.19809595,14.5088426 0.62191582,14.508846 0.266536621,14.153471 C-0.0651506321,13.8217876 -0.0872660732,13.2977585 0.200192413,12.9404256 L0.266529037,12.8665366 L11.312,1.82 L4.60054411,1.82 C4.12937619,1.82 3.74184343,1.46191524 3.69524234,1.00304221 L3.69054411,0.91 C3.69054411,0.438832073 4.04862887,0.0512993216 4.5075019,0.00469822742 L4.60054411,2.14939178e-12 L13.51,2.14939178e-12 Z" id="shape-combined"/>
-                </g>
-            </g>
-        </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 20 20" version="1.1">
+    <rect x="0" y="0" width="20" height="20" fill="none"/>
+    <g transform="translate(2, 2)" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14.5 1.5L6.5 9M14.5 1.5L10 14.5 6.5 9M14.5 1.5L1.5 6 6.5 9"/>
     </g>
 </svg>
 )
@@ -252,6 +228,45 @@ const CancleTaskSvg = () => (
 )
 
 
+// Pause task - two vertical bars
+const PauseTaskSvg = () => (
+<svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" viewBox="0 0 24 24" version="1.1">
+    <rect x="0" y="0" width="24" height="24" fill="none"/>
+    <rect fill="#FFFFFF" x="7" y="7" width="3.5" height="10" rx="1"/>
+    <rect fill="#FFFFFF" x="13.5" y="7" width="3.5" height="10" rx="1"/>
+</svg>
+);
+
+// Resume task - play triangle
+const ResumeTaskSvg = () => (
+<svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" viewBox="0 0 24 24" version="1.1">
+    <rect x="0" y="0" width="24" height="24" fill="none"/>
+    <path fill="#FFFFFF" d="M8 6.82v10.36c0 .79.87 1.27 1.54.84l8.14-5.18c.62-.39.62-1.29 0-1.69L9.54 5.98C8.87 5.55 8 6.03 8 6.82z"/>
+</svg>
+);
+
+// Mic off - microphone (idle state)
+const MicOffSvg = () => (
+<svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 20 20" version="1.1">
+    <rect x="0" y="0" width="20" height="20" fill="none"/>
+    <g transform="translate(4, 1.5)" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="0" width="6" height="10" rx="3"/>
+        <path d="M0 8c0 3.3 2.7 6 6 6m6-6c0 3.3-2.7 6-6 6m0 0v3m-2.5 0h5"/>
+    </g>
+</svg>
+);
+
+// Mic on - microphone (recording state)
+const MicOnSvg = () => (
+<svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 20 20" version="1.1">
+    <rect x="0" y="0" width="20" height="20" fill="none"/>
+    <g transform="translate(4, 1.5)" fill="currentColor" stroke="currentColor" strokeWidth="0.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="0" width="6" height="10" rx="3"/>
+        <path d="M0 8c0 3.3 2.7 6 6 6m6-6c0 3.3-2.7 6-6 6m0 0v3m-2.5 0h5" fill="none" strokeWidth="1.3"/>
+    </g>
+</svg>
+);
+
 // Exported icon components
 export const DeepThinking = (props: Partial<CustomIconComponentProps>) => (
   <Icon component={DeepThinkingSvg} {...props} />
@@ -263,10 +278,6 @@ export const Executing = (props: Partial<CustomIconComponentProps>) => (
 
 export const Browser = (props: Partial<CustomIconComponentProps>) => (
   <Icon component={BrowserSvg} {...props} />
-);
-
-export const Voice = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={VoiceSvg} {...props} />
 );
 
 export const DataAnalysis = (props: Partial<CustomIconComponentProps>) => (
@@ -303,7 +314,23 @@ export const SendMessage = (props: Partial<CustomIconComponentProps>) => (
 
 export const CancleTask = (props: Partial<CustomIconComponentProps>) => (
     <Icon component={CancleTaskSvg} {...props} />
-)
+);
+
+export const PauseTask = (props: Partial<CustomIconComponentProps>) => (
+    <Icon component={PauseTaskSvg} {...props} />
+);
+
+export const ResumeTask = (props: Partial<CustomIconComponentProps>) => (
+    <Icon component={ResumeTaskSvg} {...props} />
+);
+
+export const MicOff = (props: Partial<CustomIconComponentProps>) => (
+    <Icon component={MicOffSvg} {...props} />
+);
+
+export const MicOn = (props: Partial<CustomIconComponentProps>) => (
+    <Icon component={MicOnSvg} {...props} />
+);
 
 // Atlas icon
 const AtlasSvg = () => (

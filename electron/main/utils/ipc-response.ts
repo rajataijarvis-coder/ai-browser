@@ -8,7 +8,7 @@ export function successResponse<T = void>(data?: T): IpcResponse<T> {
   return { success: true, data };
 }
 
-export function errorResponse(error: string | Error): IpcResponse {
-  const errorMessage = error instanceof Error ? error.message : error;
+export function errorResponse(error: unknown): IpcResponse {
+  const errorMessage = error instanceof Error ? error.message : String(error);
   return { success: false, error: errorMessage };
 }

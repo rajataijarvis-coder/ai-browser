@@ -52,5 +52,18 @@
   "preview": "预览",
   "no_message_to_retry": "没有可重试的消息",
   "no_provider_warning": "请先在设置中配置 AI 提供商",
-  "no_provider_tooltip": "请先配置 AI 提供商"
+  "no_provider_tooltip": "请先配置 AI 提供商",
+  "pause_task": "暂停",
+  "resume_task": "继续",
+  "workflow_confirm_title": "工作流确认",
+  "confirm_execute": "执行",
+  "cancel_workflow": "取消",
+  "workflow_confirmed": "工作流已确认",
+  "workflow_cancelled": "工作流已取消",
+  "regenerate_workflow": "重新生成",
+  "add_step": "添加步骤",
+  "mode_chat": "普通对话",
+  "mode_explore": "深度探索",
+  "mode_chat_desc": "快速问答、搜索、网页分析",
+  "mode_explore_desc": "复杂任务、多步骤工作流"
 }

@@ -387,3 +387,29 @@ body:not(.dark),
 .playback-message-enter {
   animation: messageSlideIn 0.4s ease-out;
 }
+
+/* Thinking shimmer: left-to-right gradient sweep */
+@keyframes thinkingShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -100% 0; }
+}
+
+.thinking-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.35) 0%,
+    rgba(255, 255, 255, 0.35) 30%,
+    rgba(255, 255, 255, 0.9) 50%,
+    rgba(255, 255, 255, 0.35) 70%,
+    rgba(255, 255, 255, 0.35) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: thinkingShimmer 3s ease-in-out infinite;
+}
+
+.thinking-shimmer svg {
+  color: rgba(255, 255, 255, 0.5);
+}

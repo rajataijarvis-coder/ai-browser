@@ -11,6 +11,7 @@ Built with [Next.js](https://nextjs.org) and [Electron](https://electronjs.org).
 > - This project is for **learning purposes**. There may be bugs and issues - your understanding is appreciated.
 > - **Windows users**: Building on Windows may require multiple attempts to succeed. If the build fails, try running the build command again.
 > - **macOS recommended**: The macOS version provides a better user experience. Limited resources have been allocated to Windows optimization.
+> - **AI Provider note**: Due to limited resources and network restrictions (no access to Claude, OpenAI, etc.), this project is primarily developed and tested with **DeepSeek** models. Other providers are supported but may have less thorough testing coverage. Community contributions for other providers are welcome!
 
 ## Tech Stack
 
@@ -76,16 +77,21 @@ pnpm run build:win
 
 ## Features
 
+- **Dual Mode Interaction**:
+  - **Chat Mode** (default): Lightweight conversation with ChatAgent — streaming text, tool calls (web search, webpage QA), thinking display
+  - **Deep Explore Mode**: Multi-step workflow generation → user confirm → multi-agent execution for complex tasks
+- **Web Search Integration**: Built-in web search via Tavily, Serper, or SearXNG (self-hosted) with configurable search provider
 - **Multiple AI Providers**: Support for DeepSeek, Qwen, Google Gemini, Anthropic Claude, and OpenRouter
 - **Complete Settings System**: Configure everything through the UI - no file editing required
   - **Providers**: API keys, models, and provider-specific settings
   - **General**: Language, startup behavior, window preferences
-  - **Chat**: Temperature, max tokens, streaming, and chat behavior
-  - **Agent**: Browser/File agent settings, custom prompts, MCP tools
+  - **Chat**: Temperature, max tokens, streaming, search provider configuration
+  - **Agent**: Browser/File/Custom agent settings, per-agent MCP services
   - **UI**: Theme (Dark/Light/System), font size, density, editor preferences
   - **Network**: Proxy, request timeout, stream timeout, retry attempts
+- **Workflow Control**: Editable workflow steps with pause/resume, expert mode, and thinking display
 - **Scheduled Tasks**: Create and manage automated recurring tasks with custom intervals
-- **AI-Powered Browser**: Intelligent browser with automated task execution
+- **AI-Powered Browser**: Intelligent multi-tab browser with automated task execution
 - **Multi-Modal AI**: Vision and text processing capabilities
 - **Speech & TTS**: Voice recognition and text-to-speech integration
 - **File Management**: Advanced file operations and management
@@ -130,19 +136,29 @@ pnpm run build:win
 - Network configuration (Proxy, Timeout, Retry)
 - Scheduled Tasks system with IndexedDB storage
 
+**v0.0.12+: Chat Mode & Agent Enhancement**
+- Chat mode with ChatAgent (streaming text + inline tool calls)
+- Deep Explore mode (renamed from workflow mode) for complex multi-step tasks
+- Web search integration with 3 providers (Tavily, Serper, SearXNG)
+- Webpage QA — extract and analyze content from open browser tabs
+- Editable workflow steps with user confirmation before execution
+- Task pause/resume support
+- Expert mode with thinking process display
+- Per-agent MCP service configuration
+- Custom agent support with user-defined prompts
+- Multi-window task isolation and global service injection
+
 ### 🚀 Future Plans
 
 **Phase 1: Enhanced User Experience**
 - Voice input support (speech-to-text integration)
 - Theme customization system (multiple color schemes)
-- Dark/Light mode toggle
 - Enhanced accessibility features
 
 **Phase 2: Workflow Enhancement**
 - Workflow configuration export/import functionality
 - Refactored scheduled task steps based on workflow configuration
 - Visual workflow editor with drag-and-drop interface
-- Step management (reorder, add, remove, edit workflow steps)
 - Workflow templates and presets
 
 **Phase 3: Plugin Ecosystem**
@@ -153,7 +169,6 @@ pnpm run build:win
 - Plugin development toolkit and documentation
 
 **Phase 4: Advanced Capabilities**
-- Multi-tab browser support
 - Collaborative task execution
 - Cloud sync for tasks and configurations
 - Mobile companion app
@@ -185,8 +200,8 @@ View past tasks with search functionality and playback capabilities.
 Comprehensive settings interface with 8 panels:
 - **General**: Language, startup behavior, window preferences
 - **Providers**: AI provider selection and API key management
-- **Chat**: Temperature, max tokens, and chat behavior
-- **Agent**: Browser/File agent settings and MCP tools
+- **Chat**: Temperature, max tokens, search provider configuration
+- **Agent**: Browser/File/Custom agent settings, per-agent MCP services
 - **Scheduled Tasks**: Create and manage automated tasks
 - **User Interface**: Theme, font size, density preferences
 - **Network**: Proxy, timeout, and retry configuration
@@ -198,8 +213,8 @@ Comprehensive settings interface with 8 panels:
 
 - **DeepSeek**: deepseek-chat, deepseek-reasoner
 - **Qwen (Alibaba Cloud)**: qwen-max, qwen-plus, qwen-vl-max
-- **Google Gemini**: gemini-1.5-flash, gemini-2.0-flash, gemini-1.5-pro, and more
-- **Anthropic Claude**: claude-3.7-sonnet, claude-3.5-sonnet, claude-3-opus, and more
+- **Google Gemini**: gemini-2.0-flash, gemini-2.5-pro, gemini-2.5-flash, and more
+- **Anthropic Claude**: claude-sonnet-4-5, claude-3-7-sonnet, claude-3-5-sonnet, and more
 - **OpenRouter**: Multiple providers (Claude, GPT, Gemini, Mistral, Cohere, etc.)
 
 ## Documentation

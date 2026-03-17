@@ -1,12 +1,16 @@
 import { StreamCallbackMessage } from '@jarvis-agent/core';
+import type { ChatStreamMessage } from '@jarvis-agent/core';
 import { uuidv4 } from '@/utils/uuid';
-import { DisplayMessage, WorkflowMessage, AgentGroupMessage, UserMessage, ToolAction } from '@/models';
+import { DisplayMessage, WorkflowMessage, AgentGroupMessage, UserMessage, ChatMessage, ToolAction } from '@/models';
+import { ChatMessageProcessor } from './chatMessageProcessor';
+import { logger } from '@/utils/logger';
 
 // Message transformation and processing class
 export class MessageProcessor {
   private messages: DisplayMessage[] = [];
   private workflowMessages = new Map<string, WorkflowMessage>();
   private agentGroups = new Map<string, AgentGroupMessage>();
+  private chatProcessor = new ChatMessageProcessor();
   private executionId: string = '';
 
   // Set execution ID
@@ -15,16 +19,21 @@ export class MessageProcessor {
   }
 
   // Process streaming messages and convert to structured display messages
-  public processStreamMessage(message: StreamCallbackMessage): DisplayMessage[] {
-    console.log('MessageProcessor processing message:', message.type, message);
+  public processStreamMessage(message: StreamCallbackMessage | ChatStreamMessage): DisplayMessage[] {
+    // Route chat messages to dedicated handler
+    if (message.streamType === 'chat') {
+      return this.processChatStreamMessage(message);
+    }
+
+    logger.debug('Processing message:', 'MessageProcessor', message.type);
 
     switch (message.type) {
       case 'workflow':
         this.handleWorkflowMessage(message);
         break;
-      // case 'thinking':
-      //   this.handleThinkingMessage(message);
-      //   break;
+      case 'workflow_confirm':
+        this.handleWorkflowConfirmMessage(message);
+        break;
       case 'agent_start':
         this.handleAgentStartMessage(message);
         break;
@@ -49,7 +58,7 @@ export class MessageProcessor {
         break;
     }
 
-    console.log('MessageProcessor current message count:', this.messages.length);
+    logger.debug('Current message count:', 'MessageProcessor', this.messages.length);
     return [...this.messages];
   }
 
@@ -70,39 +79,37 @@ export class MessageProcessor {
       // Add directly to message list in order
       this.messages.push(workflowMsg);
     } else {
-      // Update workflow information
+      // Update workflow information, clear confirm state on regeneration
       workflowMsg.workflow = message.workflow;
+      if (workflowMsg.confirmId) {
+        workflowMsg.confirmId = undefined;
+        workflowMsg.confirmStatus = undefined;
+      }
     }
   }
 
-  // Handle thinking message
-  private handleThinkingMessage(message: any) {
+  // Merge workflow_confirm into existing workflow message
+  private handleWorkflowConfirmMessage(message: any) {
     const key = `${message.taskId}-${this.executionId}`;
-    let workflowMsg = this.workflowMessages.get(key);
-    
-    if (!workflowMsg) {
-      workflowMsg = {
+    const existing = this.workflowMessages.get(key);
+
+    if (existing) {
+      existing.confirmId = message.confirmId;
+      existing.confirmStatus = 'pending';
+      existing.workflow = message.workflow;
+    } else {
+      // Fallback: no existing workflow → create with confirm embedded
+      const workflowMsg: WorkflowMessage = {
         id: uuidv4(),
         type: 'workflow',
         taskId: message.taskId,
-        thinking: {
-          text: message.text || '',
-          completed: message.streamDone || false
-        },
+        workflow: message.workflow,
+        confirmId: message.confirmId,
+        confirmStatus: 'pending',
         timestamp: new Date()
       };
       this.workflowMessages.set(key, workflowMsg);
-    } else {
-      // Update thinking information
-      if (!workflowMsg.thinking) {
-        workflowMsg.thinking = { text: '', completed: false };
-      }
-      if (message.text) {
-        workflowMsg.thinking.text = message.text;
-      }
-      if (message.streamDone !== undefined) {
-        workflowMsg.thinking.completed = message.streamDone;
-      }
+      this.messages.push(workflowMsg);
     }
   }
 
@@ -149,22 +156,29 @@ export class MessageProcessor {
       this.messages.push(agentGroup);
     }
 
-    // Find or create corresponding text message
-    let textMessage = agentGroup.messages.find(msg => 
-      msg.type === 'text' && msg.id === (message.streamId || message.id)
+    const msgType = message.type === 'thinking' ? 'thinking' : 'text';
+    const streamId = message.streamId || message.id;
+
+    // Skip empty text-end messages (e.g. DeepSeek Reasoner emits empty text)
+    if (msgType === 'text' && !message.text && message.streamDone) return;
+
+    // Find or create corresponding message
+    let textMessage = agentGroup.messages.find(msg =>
+      (msg.type === 'text' || msg.type === 'thinking') && msg.id === streamId
     );
-    
+
     if (!textMessage) {
-      textMessage = {
-        type: 'text',
-        id: message.streamId || message.id || uuidv4(),
-        content: message.text || ''
-      };
+      textMessage = msgType === 'thinking'
+        ? { type: 'thinking' as const, id: streamId || uuidv4(), content: message.text || '', completed: message.streamDone ?? false }
+        : { type: 'text' as const, id: streamId || uuidv4(), content: message.text || '' };
       agentGroup.messages.push(textMessage);
     } else {
-      // Update text content (support streaming updates)
-      if (message.text) {
-        (textMessage as any).content = message.text;
+      // Update content (support streaming updates)
+      if (message.text && 'content' in textMessage) {
+        textMessage.content = message.text;
+      }
+      if (msgType === 'thinking' && message.streamDone !== undefined && 'completed' in textMessage) {
+        textMessage.completed = message.streamDone;
       }
     }
   }
@@ -191,11 +205,11 @@ export class MessageProcessor {
     }
 
     // Find or create corresponding tool action
-    let toolAction = agentGroup.messages.find(tool => tool.id === message.toolId);
+    let toolAction = agentGroup.messages.find(tool => tool.id === message.toolCallId);
     if (!toolAction) {
       toolAction = {
         type: 'tool',
-        id: message.toolId,
+        id: message.toolCallId,
         toolName: message.toolName || message.type,
         params: message.params,
         status: this.mapToolStatus(message.type),
@@ -271,7 +285,7 @@ export class MessageProcessor {
 
   // Handle error message
   private handleErrorMessage(message: any) {
-    console.error('Error message received:', message);
+    logger.error('Error message received', message.error, 'MessageProcessor');
 
     // Create error message as AgentGroupMessage with error status
     const errorMsg: AgentGroupMessage = {
@@ -293,6 +307,19 @@ export class MessageProcessor {
     this.messages.push(errorMsg);
   }
 
+  /** Process ChatStreamMessage via ChatMessageProcessor */
+  private processChatStreamMessage(message: ChatStreamMessage): DisplayMessage[] {
+    const isNewMessage = !this.chatProcessor.get(message.messageId);
+    const chatMsg = this.chatProcessor.process(message);
+
+    // Append newly created ChatMessage to display list
+    if (chatMsg && isNewMessage && message.type === 'chat_start') {
+      this.messages.push(chatMsg);
+    }
+
+    return [...this.messages];
+  }
+
   // Get current message list
   public getMessages(): DisplayMessage[] {
     return [...this.messages];
@@ -310,5 +337,6 @@ export class MessageProcessor {
     this.messages = [];
     this.workflowMessages.clear();
     this.agentGroups.clear();
+    this.chatProcessor.clear();
   }
 }

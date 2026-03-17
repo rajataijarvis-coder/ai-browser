@@ -1,6 +1,5 @@
-import { Eko, SimpleSseMcpClient, type LLMs, type StreamCallbackMessage, type AgentContext } from "@jarvis-agent/core";
+import { Agent, Eko, ChatAgent, SimpleSseMcpClient, resetWorkflowXml, global as ekoGlobal, type IMcpClient, type LLMs, type StreamCallbackMessage, type AgentContext, type EkoResult, type EkoDialogueConfig, type ChatStreamCallback, type ChatStreamMessage } from "@jarvis-agent/core";
 import { BrowserAgent, FileAgent } from "@jarvis-agent/electron";
-import type { EkoResult } from "@jarvis-agent/core/types";
 import { BrowserWindow, app } from "electron";
 import path from "node:path";
 import fs from "node:fs";
@@ -8,13 +7,15 @@ import { randomUUID } from "node:crypto";
 import { ConfigManager } from "../utils/config-manager";
 import { SettingsManager } from "../utils/settings-manager";
 import { TabManager } from "./tab-manager";
+import { AppChatService } from "./app-chat-service";
+import { AppBrowserService } from "./app-browser-service";
+import type { AgentMcpConfig, McpServiceConfig } from "../models/settings";
 import type { HumanRequestMessage, HumanResponseMessage, HumanInteractionContext } from "../../../src/models/human-interaction";
 
 export class EkoService {
   private eko: Eko | null = null;
   private mainWindow: BrowserWindow;
   private tabManager: TabManager;
-  private mcpClient!: SimpleSseMcpClient;
   private browserAgent: BrowserAgent | null = null;
 
   // Store pending human interaction requests
@@ -23,24 +24,82 @@ export class EkoService {
     reject: (reason?: any) => void;
   }>();
 
-  // Map toolId to requestId for human interactions
-  private toolIdToRequestId = new Map<string, string>();
+  // Map toolCallId to requestId for human interactions
+  private toolCallIdToRequestId = new Map<string, string>();
 
-  // Store current human_interact toolId
-  private currentHumanInteractToolId: string | null = null;
+  // Store current human_interact toolCallId
+  private currentHumanInteractToolCallId: string | null = null;
+
+  // Store pending workflow confirm requests
+  private pendingWorkflowConfirms = new Map<string, {
+    resolve: (result: "confirm" | "cancel" | "regenerate") => void;
+  }>();
+
+  // Map confirmId → taskId for regeneration
+  private confirmIdToTaskId = new Map<string, string>();
 
   // Track running task IDs for accurate status checking
   private runningTaskIds: Set<string> = new Set();
 
+  // Store original prompts for regeneration
+  private taskPrompts = new Map<string, string>();
+
+  // ChatAgent instance for chat mode
+  private chatAgent: ChatAgent | null = null;
+  private chatAbortControllers = new Map<string, AbortController>();
+
+  // Global services for eko-core
+  private appChatService: AppChatService;
+
   constructor(mainWindow: BrowserWindow, tabManager: TabManager) {
     this.mainWindow = mainWindow;
     this.tabManager = tabManager;
+    this.appChatService = this.initializeGlobalServices();
     this.initializeEko();
   }
 
-  /**
-   * Create stream callback handler
-   */
+  /** Inject ChatService & BrowserService into eko-core global (only once) */
+  private initializeGlobalServices(): AppChatService {
+    // Only set global services if not already initialized,
+    // to avoid task windows overwriting main window's services.
+    if (!ekoGlobal.browserService) {
+      ekoGlobal.browserService = new AppBrowserService(this.tabManager);
+    }
+
+    if (!ekoGlobal.chatService) {
+      const searchConfig = SettingsManager.getInstance().getAppSettings().chat.searchProvider;
+      const chatService = new AppChatService(searchConfig);
+      ekoGlobal.chatService = chatService;
+      console.log("[EkoService] Global services injected");
+      return chatService;
+    }
+
+    return ekoGlobal.chatService as AppChatService;
+  }
+
+  // Remap duplicate thinking streamIds across ReAct loops
+  private thinkingStreamIdMap: { originalId: string; mappedId: string; done: boolean } | null = null;
+
+  /** Ensure each thinking round gets a unique streamId */
+  private deduplicateThinkingStreamId(msg: any): void {
+    const map = this.thinkingStreamIdMap;
+
+    if (!map || map.done) {
+      // First thinking ever, or previous round finished — start new mapping
+      const needsRemap = map?.done && map.originalId === msg.streamId;
+      const mappedId = needsRemap ? randomUUID() : msg.streamId;
+      this.thinkingStreamIdMap = { originalId: msg.streamId, mappedId, done: false };
+      msg.streamId = mappedId;
+    } else {
+      // Ongoing round — apply current mapping
+      msg.streamId = map.mappedId;
+    }
+
+    if (msg.streamDone && this.thinkingStreamIdMap) {
+      this.thinkingStreamIdMap.done = true;
+    }
+  }
+
   private createCallback() {
     return {
       onMessage: (message: StreamCallbackMessage): Promise<void> => {
@@ -48,8 +107,13 @@ export class EkoService {
           return Promise.resolve();
         }
 
-        if (message.type === 'tool_use' && message.toolName === 'human_interact' && message.toolId) {
-          this.currentHumanInteractToolId = message.toolId;
+        // Fix duplicate thinking streamId (e.g. DeepSeek always returns "reasoning-0")
+        if (message.type === 'thinking') {
+          this.deduplicateThinkingStreamId(message as any);
+        }
+
+        if (message.type === 'tool_use' && message.toolName === 'human_interact' && message.toolCallId) {
+          this.currentHumanInteractToolCallId = message.toolCallId;
         }
 
         return new Promise((resolve) => {
@@ -77,11 +141,18 @@ export class EkoService {
               const url = activeView.webContents.getURL();
               const fileName = args.fileName || args.path || 'file.txt';
               if (!url.includes('file-view')) {
-                activeView.webContents.loadURL(`http://localhost:5173/file-view`);
-                activeView.webContents.once('did-finish-load', () => {
-                  activeView.webContents.send('file-updated', 'code', args.content, fileName);
+                let resolved = false;
+                const done = (sendFile: boolean) => {
+                  if (resolved) return;
+                  resolved = true;
+                  clearTimeout(timer);
+                  if (sendFile) activeView.webContents.send('file-updated', 'code', args.content, fileName);
                   resolve();
-                });
+                };
+                const timer = setTimeout(() => done(true), 5000);
+                activeView.webContents.once('did-finish-load', () => done(true));
+                activeView.webContents.once('did-fail-load', () => done(false));
+                activeView.webContents.loadURL(`http://localhost:5173/file-view`);
               } else {
                 activeView.webContents.send('file-updated', 'code', args.content, fileName);
                 resolve();
@@ -157,6 +228,33 @@ export class EkoService {
   }
 
   /**
+   * Build custom Agent instances from config
+   */
+  private buildCustomAgents(agentConfig: ReturnType<ConfigManager['getAgentConfig']>): Agent[] {
+    return (agentConfig?.customAgents ?? [])
+      .filter(c => c.enabled)
+      .map(c => new Agent({
+        name: c.name,
+        description: c.description,
+        planDescription: c.planDescription,
+        tools: [],
+        mcpClients: this.buildMcpClients(c.mcpServices),
+      }));
+  }
+
+  /**
+   * Build MCP clients for a specific agent based on its config
+   */
+  private buildMcpClients(agentMcpConfig: AgentMcpConfig): IMcpClient[] {
+    const mcpSettings = ConfigManager.getInstance().getMcpSettings();
+    const services: McpServiceConfig[] = mcpSettings?.services ?? [];
+
+    return services
+      .filter(service => agentMcpConfig[service.id]?.enabled && service.url)
+      .map(service => new SimpleSseMcpClient(service.url));
+  }
+
+  /**
    * Get base work path for file storage
    */
   private getBaseWorkPath(): string {
@@ -170,6 +268,28 @@ export class EkoService {
    */
   private getTaskWorkPath(taskId: string): string {
     return path.join(this.getBaseWorkPath(), taskId);
+  }
+
+  /** Build plan/compress LLM key arrays from chat settings */
+  private buildOptionalLlmKeys(): { planLlms?: string[]; compressLlms?: string[] } {
+    const chatSettings = SettingsManager.getInstance().getAppSettings().chat;
+    const result: { planLlms?: string[]; compressLlms?: string[] } = {};
+    if (chatSettings.planModel) result.planLlms = ['plan'];
+    if (chatSettings.compressModel) result.compressLlms = ['compress'];
+    return result;
+  }
+
+  /** Build globalConfig from app settings */
+  private buildGlobalConfig(): Record<string, unknown> {
+    const settings = SettingsManager.getInstance().getAppSettings();
+    const { network, chat } = settings;
+    return {
+      maxOutputTokens: chat.maxTokens,
+      streamFirstTimeout: network.requestTimeout * 1000,
+      streamTokenTimeout: network.streamTimeout * 1000,
+      maxRetryNum: network.retryAttempts,
+      ...(chat.expertMode && { expertMode: true }),
+    };
   }
 
   /**
@@ -192,25 +312,22 @@ export class EkoService {
       fs.mkdirSync(taskWorkPath, { recursive: true });
       const activeView = this.tabManager.getActiveView();
       if (activeView) {
+        const fileMcpClients = this.buildMcpClients(agentConfig.fileAgent.mcpServices);
         agents.push(
-          new FileAgent(activeView, taskWorkPath, this.mcpClient, agentConfig.fileAgent.customPrompt)
+          new FileAgent(activeView, taskWorkPath, fileMcpClients, agentConfig.fileAgent.customPrompt)
         );
       }
     }
 
-    // Get network settings for timeout and retry configuration
-    const settingsManager = SettingsManager.getInstance();
-    const networkSettings = settingsManager.getAppSettings().network;
+    // Create custom agents
+    agents.push(...this.buildCustomAgents(agentConfig));
 
     return new Eko({
       llms,
       agents,
+      ...this.buildOptionalLlmKeys(),
       callback: this.createCallback(),
-      globalConfig: {
-        streamFirstTimeout: networkSettings.requestTimeout * 1000,  // Convert seconds to milliseconds
-        streamTokenTimeout: networkSettings.streamTimeout * 1000,   // Convert seconds to milliseconds
-        maxRetryNum: networkSettings.retryAttempts
-      }
+      globalConfig: this.buildGlobalConfig(),
     });
   }
 
@@ -219,29 +336,22 @@ export class EkoService {
     const llms: LLMs = configManager.getLLMsConfig();
     const agentConfig = configManager.getAgentConfig();
 
-    this.mcpClient = new SimpleSseMcpClient("http://localhost:5173/api/mcp/sse");
-
     // Only create BrowserAgent once (no file storage involved)
     if (agentConfig?.browserAgent?.enabled) {
-      this.browserAgent = new BrowserAgent(this.tabManager, this.mcpClient, agentConfig.browserAgent.customPrompt);
+      const browserMcpClients = this.buildMcpClients(agentConfig.browserAgent.mcpServices);
+      this.browserAgent = new BrowserAgent(this.tabManager, browserMcpClients, agentConfig.browserAgent.customPrompt);
     }
 
-    // Create default Eko instance with only BrowserAgent for restore/modify scenarios
-    const defaultAgents = this.browserAgent ? [this.browserAgent] : [];
-
-    // Get network settings for timeout and retry configuration
-    const settingsManager = SettingsManager.getInstance();
-    const networkSettings = settingsManager.getAppSettings().network;
+    // Create default Eko instance with BrowserAgent + custom agents for restore/modify
+    const defaultAgents: any[] = this.browserAgent ? [this.browserAgent] : [];
+    defaultAgents.push(...this.buildCustomAgents(agentConfig));
 
     this.eko = new Eko({
       llms,
       agents: defaultAgents,
+      ...this.buildOptionalLlmKeys(),
       callback: this.createCallback(),
-      globalConfig: {
-        streamFirstTimeout: networkSettings.requestTimeout * 1000,  // Convert seconds to milliseconds
-        streamTokenTimeout: networkSettings.streamTimeout * 1000,   // Convert seconds to milliseconds
-        maxRetryNum: networkSettings.retryAttempts
-      }
+      globalConfig: this.buildGlobalConfig(),
     });
   }
 
@@ -261,33 +371,32 @@ export class EkoService {
 
     this.rejectAllHumanRequests(new Error('EkoService configuration reloaded'));
 
+    // Hot-swap search provider
+    const searchConfig = SettingsManager.getInstance().getAppSettings().chat.searchProvider;
+    this.appChatService.updateSearchProvider(searchConfig);
+
     const configManager = ConfigManager.getInstance();
     const llms: LLMs = configManager.getLLMsConfig();
     const agentConfig = configManager.getAgentConfig();
 
     // Recreate BrowserAgent with new config
     if (agentConfig?.browserAgent?.enabled) {
-      this.browserAgent = new BrowserAgent(this.tabManager, this.mcpClient, agentConfig.browserAgent.customPrompt);
+      const browserMcpClients = this.buildMcpClients(agentConfig.browserAgent.mcpServices);
+      this.browserAgent = new BrowserAgent(this.tabManager, browserMcpClients, agentConfig.browserAgent.customPrompt);
     } else {
       this.browserAgent = null;
     }
 
-    // Create default Eko instance
-    const defaultAgents = this.browserAgent ? [this.browserAgent] : [];
-
-    // Get network settings for timeout and retry configuration
-    const settingsManager = SettingsManager.getInstance();
-    const networkSettings = settingsManager.getAppSettings().network;
+    // Create default Eko instance with custom agents
+    const reloadAgents: any[] = this.browserAgent ? [this.browserAgent] : [];
+    reloadAgents.push(...this.buildCustomAgents(agentConfig));
 
     this.eko = new Eko({
       llms,
-      agents: defaultAgents,
+      agents: reloadAgents,
+      ...this.buildOptionalLlmKeys(),
       callback: this.createCallback(),
-      globalConfig: {
-        streamFirstTimeout: networkSettings.requestTimeout * 1000,  // Convert seconds to milliseconds
-        streamTokenTimeout: networkSettings.streamTimeout * 1000,   // Convert seconds to milliseconds
-        maxRetryNum: networkSettings.retryAttempts
-      }
+      globalConfig: this.buildGlobalConfig(),
     });
 
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -298,7 +407,45 @@ export class EkoService {
     }
   }
 
-  async run(message: string): Promise<EkoResult | null> {
+  /** Send workflow_confirm to frontend and wait for user response */
+  private requestWorkflowConfirm(taskId: string): Promise<"confirm" | "cancel" | "regenerate"> {
+    if (!this.eko || !this.mainWindow || this.mainWindow.isDestroyed()) {
+      return Promise.resolve("confirm");
+    }
+
+    const context = this.eko.getTask(taskId);
+    if (!context?.workflow) return Promise.resolve("confirm");
+
+    const confirmId = randomUUID();
+    this.confirmIdToTaskId.set(confirmId, taskId);
+    return new Promise((resolve) => {
+      this.pendingWorkflowConfirms.set(confirmId, { resolve });
+      this.mainWindow.webContents.send('eko-stream-message', {
+        type: 'workflow_confirm',
+        taskId,
+        confirmId,
+        workflow: context.workflow,
+      });
+    });
+  }
+
+  /** Generate workflow and loop confirm until confirmed or cancelled */
+  private async generateAndConfirm(taskId: string, prompt: string): Promise<boolean> {
+    if (!this.eko) return false;
+
+    await this.eko.generate(prompt, taskId);
+
+    // Loop: confirm → regenerate → confirm → ...
+    while (true) {
+      const result = await this.requestWorkflowConfirm(taskId);
+      if (result === 'confirm') return true;
+      if (result === 'cancel') return false;
+      // regenerate: re-generate and loop back
+      await this.eko.generate(prompt, taskId);
+    }
+  }
+
+  async run(message: string, skipConfirm = false): Promise<EkoResult | null> {
     let taskId: string | null = null;
     try {
       // Generate unique taskId for this execution
@@ -307,16 +454,28 @@ export class EkoService {
       // Create Eko instance with task-specific work directory
       this.eko = this.createEkoForTask(taskId);
       this.runningTaskIds.add(taskId);
+      this.taskPrompts.set(taskId, message);
+      this.thinkingStreamIdMap = null;
 
-      // Execute with the specified taskId
-      return await this.eko.run(message, taskId);
-    } catch (error: any) {
+      if (skipConfirm) {
+        await this.eko.generate(message, taskId);
+      } else {
+        const confirmed = await this.generateAndConfirm(taskId, message);
+        if (!confirmed) {
+          return { taskId, success: false, stopReason: 'abort', result: 'User cancelled workflow' };
+        }
+      }
+
+      return await this.eko.execute(taskId);
+    } catch (error: unknown) {
       console.error('[EkoService] Run error:', error);
-      this.sendErrorToFrontend(error?.message || 'Unknown error occurred', error);
+      const errMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+      this.sendErrorToFrontend(errMsg, error);
       return null;
     } finally {
       if (taskId) {
         this.runningTaskIds.delete(taskId);
+        this.taskPrompts.delete(taskId);
       }
     }
   }
@@ -329,15 +488,36 @@ export class EkoService {
     }
 
     try {
+      // Reset aborted context before modify to avoid stale abort signal
+      const context = this.eko.getTask(taskId);
+      if (context?.controller?.signal?.aborted) {
+        context.reset();
+      }
+
       await this.eko.modify(taskId, message);
       this.runningTaskIds.add(taskId);
+      this.taskPrompts.set(taskId, message);
+
+      // Loop: confirm → regenerate → confirm → ...
+      while (true) {
+        const result = await this.requestWorkflowConfirm(taskId);
+        if (result === 'cancel') {
+          return { taskId, success: false, stopReason: 'abort', result: 'User cancelled workflow' };
+        }
+        if (result === 'confirm') break;
+        // regenerate
+        await this.eko.modify(taskId, message);
+      }
+
       return await this.eko.execute(taskId);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[EkoService] Modify error:', error);
-      this.sendErrorToFrontend(error?.message || 'Failed to modify task', error, taskId);
+      const errMsg = error instanceof Error ? error.message : 'Failed to modify task';
+      this.sendErrorToFrontend(errMsg, error, taskId);
       return null;
     } finally {
       this.runningTaskIds.delete(taskId);
+      this.taskPrompts.delete(taskId);
     }
   }
 
@@ -351,36 +531,45 @@ export class EkoService {
     try {
       this.runningTaskIds.add(taskId);
       return await this.eko.execute(taskId);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[EkoService] Execute error:', error);
-      this.sendErrorToFrontend(error?.message || 'Failed to execute task', error, taskId);
+      const errMsg = error instanceof Error ? error.message : 'Failed to execute task';
+      this.sendErrorToFrontend(errMsg, error, taskId);
       return null;
     } finally {
       this.runningTaskIds.delete(taskId);
     }
   }
 
-  async cancleTask(taskId: string): Promise<any> {
+  /**
+   * Pause or resume a running task
+   */
+  pauseTask(taskId: string, pause: boolean): boolean {
+    if (!this.eko) return false;
+    return this.eko.pauseTask(taskId, pause);
+  }
+
+  async cancelTask(taskId: string): Promise<any> {
     if (!this.eko) {
       console.error('[EkoService] Eko service not initialized');
       return { success: false, error: 'Service not initialized' };
     }
 
     try {
-      const result = await this.eko.abortTask(taskId, 'cancle');
+      const result = await this.eko.abortTask(taskId, 'cancel');
       return { success: result };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[EkoService] Failed to cancel task:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
 
-  private sendErrorToFrontend(errorMessage: string, error?: any, taskId?: string): void {
+  private sendErrorToFrontend(errorMessage: string, error?: unknown, taskId?: string): void {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.webContents.send('eko-stream-message', {
         type: 'error',
         error: errorMessage,
-        detail: error?.stack || error?.toString() || errorMessage,
+        detail: error instanceof Error ? error.stack : String(error ?? errorMessage),
         taskId
       });
     }
@@ -471,9 +660,9 @@ export class EkoService {
     return new Promise((resolve, reject) => {
       this.pendingHumanRequests.set(requestId, { resolve, reject });
 
-      if (this.currentHumanInteractToolId) {
-        this.toolIdToRequestId.set(this.currentHumanInteractToolId, requestId);
-        this.currentHumanInteractToolId = null;
+      if (this.currentHumanInteractToolCallId) {
+        this.toolCallIdToRequestId.set(this.currentHumanInteractToolCallId, requestId);
+        this.currentHumanInteractToolCallId = null;
       }
 
       agentContext?.context?.controller?.signal?.addEventListener('abort', () => {
@@ -491,12 +680,46 @@ export class EkoService {
     });
   }
 
+  /** Resolve a pending workflow confirm request */
+  public resolveWorkflowConfirm(confirmId: string, confirmed: boolean, modifiedWorkflow?: any): void {
+    const pending = this.pendingWorkflowConfirms.get(confirmId);
+    if (!pending) return;
+
+    // Apply modified workflow agents before confirming
+    if (confirmed && modifiedWorkflow?.agents && this.eko) {
+      const taskId = this.confirmIdToTaskId.get(confirmId);
+      if (taskId) {
+        const context = this.eko.getTask(taskId);
+        if (context?.workflow) {
+          context.workflow.agents = modifiedWorkflow.agents;
+          resetWorkflowXml(context.workflow);
+        }
+      }
+    }
+
+    pending.resolve(confirmed ? "confirm" : "cancel");
+    this.pendingWorkflowConfirms.delete(confirmId);
+    this.confirmIdToTaskId.delete(confirmId);
+  }
+
+  /** Trigger workflow regeneration by resolving pending confirm */
+  public regenerateWorkflow(taskId: string): void {
+    for (const [cid, pending] of this.pendingWorkflowConfirms) {
+      if (this.confirmIdToTaskId.get(cid) === taskId) {
+        pending.resolve('regenerate');
+        this.pendingWorkflowConfirms.delete(cid);
+        this.confirmIdToTaskId.delete(cid);
+        return;
+      }
+    }
+  }
+
   public handleHumanResponse(response: HumanResponseMessage): boolean {
     let pending = this.pendingHumanRequests.get(response.requestId);
     let actualRequestId = response.requestId;
 
     if (!pending) {
-      const mappedRequestId = this.toolIdToRequestId.get(response.requestId);
+      const mappedRequestId = this.toolCallIdToRequestId.get(response.requestId);
       if (mappedRequestId) {
         pending = this.pendingHumanRequests.get(mappedRequestId);
         actualRequestId = mappedRequestId;
@@ -506,7 +729,7 @@ export class EkoService {
     if (!pending) return false;
 
     this.pendingHumanRequests.delete(actualRequestId);
-    this.toolIdToRequestId.delete(response.requestId);
+    this.toolCallIdToRequestId.delete(response.requestId);
 
     if (response.success) {
       pending.resolve(response.result);
@@ -534,12 +757,113 @@ export class EkoService {
     }
 
     this.pendingHumanRequests.clear();
-    this.toolIdToRequestId.clear();
-    this.currentHumanInteractToolId = null;
+    this.toolCallIdToRequestId.clear();
+    this.currentHumanInteractToolCallId = null;
+
+    // Cancel all pending workflow confirms
+    for (const pending of this.pendingWorkflowConfirms.values()) {
+      pending.resolve("cancel");
+    }
+    this.pendingWorkflowConfirms.clear();
   }
 
-  destroy() {
+  /** Create ChatAgent with current config */
+  private createChatAgent(chatId: string): ChatAgent {
+    const configManager = ConfigManager.getInstance();
+    const llms = configManager.getLLMsConfig();
+    const config: EkoDialogueConfig = {
+      llms,
+      agents: this.buildChatAgents(),
+      ...this.buildOptionalLlmKeys(),
+      globalConfig: this.buildGlobalConfig(),
+    };
+    return new ChatAgent(config, chatId);
+  }
+
+  /** Build agents for ChatAgent (browser + custom) */
+  private buildChatAgents(): Agent[] {
+    const agentConfig = ConfigManager.getInstance().getAgentConfig();
+    const agents: Agent[] = [];
+    if (this.browserAgent) agents.push(this.browserAgent);
+    agents.push(...this.buildCustomAgents(agentConfig));
+    return agents;
+  }
+
+  /** Create ChatStreamCallback forwarding to frontend */
+  private createChatCallback(): ChatStreamCallback {
+    return {
+      chatCallback: {
+        onMessage: async (message: ChatStreamMessage) => {
+          if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+          this.mainWindow.webContents.send('eko-stream-message', message);
+        }
+      },
+      taskCallback: this.createCallback(),
+    };
+  }
+
+  /** Run a chat turn */
+  async chatRun(chatId: string, messageId: string, text: string): Promise<{ chatId: string; result: string | null; error?: string }> {
+    try {
+      if (!this.chatAgent || this.chatAgent.getChatContext().getChatId() !== chatId) {
+        this.chatAgent = this.createChatAgent(chatId);
+      }
+
+      this.runningTaskIds.add(chatId);
+      const controller = new AbortController();
+      this.chatAbortControllers.set(chatId, controller);
+
+      const result = await this.chatAgent.chat({
+        messageId,
+        user: [{ type: 'text', text }],
+        callback: this.createChatCallback(),
+        signal: controller.signal,
+      });
+
+      return { chatId, result };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Chat error';
+      console.error('[EkoService] chatRun error:', errMsg);
+      this.sendErrorToFrontend(errMsg, error, chatId);
+      return { chatId, result: null, error: errMsg };
+    } finally {
+      this.runningTaskIds.delete(chatId);
+      this.chatAbortControllers.delete(chatId);
+    }
+  }
+
+  /** Cancel a running chat */
+  async chatCancel(chatId: string): Promise<void> {
+    const controller = this.chatAbortControllers.get(chatId);
+    if (controller) controller.abort();
+  }
+
+  /** Clean up all tasks, MCP connections, and internal state */
+  async destroy(): Promise<void> {
+    // Abort and delete all Eko tasks (triggers MCP client.close() in Agent.run finally block)
+    if (this.eko) {
+      for (const taskId of this.eko.getAllTaskId()) {
+        try { this.eko.deleteTask(taskId); } catch {}
+      }
+    }
+
+    // Cancel all running chats
+    for (const controller of this.chatAbortControllers.values()) {
+      controller.abort();
+    }
+
+    // Clean up ChatAgent from global chatMap
+    if (this.chatAgent) {
+      const chatId = this.chatAgent.getChatContext().getChatId();
+      ekoGlobal.chatMap?.delete(chatId);
+    }
+
     this.rejectAllHumanRequests(new Error('EkoService destroyed'));
     this.eko = null;
+    this.browserAgent = null;
+    this.chatAgent = null;
+    this.chatAbortControllers.clear();
+    this.runningTaskIds.clear();
+    this.taskPrompts.clear();
   }
 }
