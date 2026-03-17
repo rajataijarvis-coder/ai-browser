@@ -1,12 +1,13 @@
 import { useCallback } from 'react';
 import type { StreamCallbackMessage, ChatStreamMessage } from '@jarvis-agent/core';
-import { Task, ToolAction } from '@/models';
+import { Task, ToolAction, UserMessage } from '@/models';
 
 type StreamMessage = StreamCallbackMessage | ChatStreamMessage;
 import { MessageProcessor } from '@/utils/messageTransform';
 import { useTranslation } from 'react-i18next';
 import { uuidv4 } from '@/utils/uuid';
 import { detectFileType } from '@/utils/fileDetection';
+import { logger } from '@/utils/logger';
 
 interface UseMessageHandlersOptions {
   isHistoryMode: boolean;
@@ -94,7 +95,7 @@ export const useMessageHandlers = ({
         try {
           fileInfo = JSON.parse(toolResult.content[0].text);
         } catch (e) {
-          console.error('[useMessageHandlers] Failed to parse file info:', e);
+          logger.error('Failed to parse file info', e, 'useMessageHandlers');
           return;
         }
       }
@@ -123,7 +124,7 @@ export const useMessageHandlers = ({
         }
       }
     } catch (error) {
-      console.error('[useMessageHandlers] Failed to handle file attachment:', error);
+      logger.error('Failed to handle file attachment', error, 'useMessageHandlers');
     }
   }, [taskIdRef, tasks, updateTask]);
 
@@ -151,7 +152,7 @@ export const useMessageHandlers = ({
         addToolHistory(taskIdRef.current, toolMessage);
       }
     } catch (error) {
-      console.error('[useMessageHandlers] Screenshot failed:', error);
+      logger.error('Screenshot failed', error, 'useMessageHandlers');
     }
   }, [taskIdRef, showDetailAgents, toolHistory, setToolHistory, addToolHistory]);
 
@@ -167,11 +168,13 @@ export const useMessageHandlers = ({
       if (taskIdToUpdate) {
         const updates: Partial<Task> = { messages: updatedMessages };
 
-        // Set task name on first chat_start
+        // Set task name from user's first message
         if (chatMsg.type === 'chat_start') {
           const existingTask = tasks.find(t => t.id === taskIdToUpdate);
           if (existingTask?.name?.startsWith('Task ') || existingTask?.name === 'Processing...') {
-            updates.name = `Chat ${taskIdToUpdate.slice(0, 8)}`;
+            const userMsgs = existingTask.messages?.filter(m => m.type === 'user');
+            const firstInput = (userMsgs?.[0] as UserMessage | undefined)?.content;
+            updates.name = firstInput?.slice(0, 30) || `Chat ${taskIdToUpdate.slice(0, 8)}`;
           }
         }
 
