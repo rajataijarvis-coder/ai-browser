@@ -6,6 +6,7 @@ import { registerAgentHandlers } from "./agent-handlers";
 import { registerFileHandlers } from "./file-handlers";
 import { registerSettingsHandlers } from "./settings-handlers";
 import { registerTabHandlers } from "./tab-handlers";
+import { registerSkillHandlers } from "./skill-handlers";
 
 export function registerAllIpcHandlers() {
   registerEkoHandlers();
@@ -16,6 +17,7 @@ export function registerAllIpcHandlers() {
   registerFileHandlers();
   registerSettingsHandlers();
   registerTabHandlers();
+  registerSkillHandlers();
 }
 
 export {
@@ -26,5 +28,6 @@ export {
   registerAgentHandlers,
   registerFileHandlers,
   registerSettingsHandlers,
-  registerTabHandlers
+  registerTabHandlers,
+  registerSkillHandlers
 };

@@ -112,6 +112,14 @@ const api = {
   // Fetch models from provider API (bypass CORS)
   fetchModels: (providerId: string, apiKey: string, baseUrl: string) =>
     safeInvoke('settings:fetch-models', providerId, apiKey, baseUrl),
+
+  // Skills management APIs
+  skillsList: () => safeInvoke('skills:list'),
+  skillsGetContent: (name: string) => safeInvoke('skills:get-content', name),
+  skillsImportZip: () => safeInvoke('skills:import-zip'),
+  skillsImportFolder: () => safeInvoke('skills:import-folder'),
+  skillsDelete: (name: string) => safeInvoke('skills:delete', name),
+  skillsLoad: (name: string) => safeInvoke('skills:load', name),
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

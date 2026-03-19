@@ -9,6 +9,7 @@ import { SettingsManager } from "../utils/settings-manager";
 import { TabManager } from "./tab-manager";
 import { AppChatService } from "./app-chat-service";
 import { AppBrowserService } from "./app-browser-service";
+import { SkillService } from "./skill-service";
 import type { AgentMcpConfig, McpServiceConfig } from "../models/settings";
 import type { HumanRequestMessage, HumanResponseMessage, HumanInteractionContext } from "../../../src/models/human-interaction";
 
@@ -50,10 +51,12 @@ export class EkoService {
 
   // Global services for eko-core
   private appChatService: AppChatService;
+  private skillService: SkillService;
 
   constructor(mainWindow: BrowserWindow, tabManager: TabManager) {
     this.mainWindow = mainWindow;
     this.tabManager = tabManager;
+    this.skillService = new SkillService();
     this.appChatService = this.initializeGlobalServices();
     this.initializeEko();
   }
@@ -64,6 +67,11 @@ export class EkoService {
     // to avoid task windows overwriting main window's services.
     if (!ekoGlobal.browserService) {
       ekoGlobal.browserService = new AppBrowserService(this.tabManager);
+    }
+
+    // Inject SkillService (type will be available after next jarvis-agent release)
+    if (!(ekoGlobal as any).skillService) {
+      (ekoGlobal as any).skillService = this.skillService;
     }
 
     if (!ekoGlobal.chatService) {
@@ -353,6 +361,11 @@ export class EkoService {
       callback: this.createCallback(),
       globalConfig: this.buildGlobalConfig(),
     });
+  }
+
+  /** Expose SkillService for IPC handlers */
+  getSkillService(): SkillService {
+    return this.skillService;
   }
 
   /**
