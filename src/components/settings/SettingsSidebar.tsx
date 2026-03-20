@@ -4,6 +4,7 @@ import {
   CloudOutlined,
   MessageOutlined,
   RobotOutlined,
+  ThunderboltOutlined,
   ApiOutlined,
   ClockCircleOutlined,
   BulbOutlined,
@@ -63,6 +64,11 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
       id: 'agent',
       labelKey: 'sidebar.agent',
       icon: <RobotOutlined />
+    },
+    {
+      id: 'skills',
+      labelKey: 'sidebar.skills',
+      icon: <ThunderboltOutlined />
     },
     {
       id: 'mcp',

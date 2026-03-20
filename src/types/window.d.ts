@@ -99,6 +99,15 @@ declare global {
       // Fetch models from provider API (bypass CORS)
       fetchModels: (providerId: string, apiKey: string, baseUrl: string) => Promise<IpcResponse<any>>
 
+      // Skills APIs
+      skillsList: () => Promise<IpcResponse<Array<{ name: string; description: string; path: string; source: 'builtin' | 'user'; enabled: boolean; metadata?: Record<string, unknown> }>>>
+      skillsGetContent: (name: string) => Promise<IpcResponse<{ metadata: { name: string; description: string; metadata?: Record<string, unknown> }; instructions: string; resources: string[] }>>
+      skillsImportZip: () => Promise<IpcResponse<{ name: string }>>
+      skillsImportFolder: () => Promise<IpcResponse<{ name: string }>>
+      skillsDelete: (name: string) => Promise<IpcResponse<void>>
+      skillsLoad: (name: string) => Promise<IpcResponse<unknown>>
+      skillsLoadResource: (name: string, path: string) => Promise<IpcResponse<string>>
+
       // Generic IPC invoke method
       invoke: <T = any>(channel: string, ...args: any[]) => Promise<T>
     }

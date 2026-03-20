@@ -19,6 +19,7 @@ import { UserInterfacePanel } from './panels/UserInterfacePanel';
 import { NetworkPanel } from './panels/NetworkPanel';
 import { AboutPanel } from './panels/AboutPanel';
 import { McpPanel } from './panels/McpPanel';
+import { SkillsPanel } from './panels/SkillsPanel';
 import { useSettingsState } from '@/hooks/useSettingsState';
 import { getDefaultSettings } from '@/config/settings-defaults';
 import { logger } from '@/utils/logger';
@@ -30,6 +31,7 @@ export type SettingsTab =
   | 'providers'
   | 'chat'
   | 'agent'
+  | 'skills'
   | 'mcp'
   | 'scheduled-tasks'
   | 'user-interface'
@@ -38,7 +40,7 @@ export type SettingsTab =
   | 'about';
 
 const VALID_SETTINGS_TABS: SettingsTab[] = [
-  'general', 'providers', 'chat', 'agent', 'mcp', 'scheduled-tasks',
+  'general', 'providers', 'chat', 'agent', 'skills', 'mcp', 'scheduled-tasks',
   'user-interface', 'network', 'memory', 'about'
 ];
 
@@ -321,6 +323,8 @@ export const SettingsLayout: React.FC<SettingsLayoutProps> = ({
             mcpServices={mcp?.services ?? []}
           />
         ) : null;
+      case 'skills':
+        return <SkillsPanel />;
       case 'mcp':
         return (
           <McpPanel

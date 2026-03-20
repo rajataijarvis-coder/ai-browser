@@ -51,6 +51,7 @@
     "scheduled_tasks": "Scheduled Tasks",
     "user_interface": "User Interface",
     "network": "Network",
+    "skills": "Skills",
     "memory": "Memory",
     "about": "About",
     "coming_soon": "Soon"
@@ -258,6 +259,30 @@
     "sse_url_hint": "The SSE endpoint URL of your MCP server",
     "empty_title": "No MCP Services",
     "empty_desc": "Add an MCP service to extend your agents with external tools"
+  },
+
+  "skills": {
+    "title": "Skills",
+    "description": "Manage skill packages that guide AI agents with domain knowledge and workflows",
+    "import_zip": "Import ZIP",
+    "import_folder": "Import Folder",
+    "import_success": "Skill \"{{name}}\" imported successfully",
+    "import_error": "Failed to import skill",
+    "delete": "Delete",
+    "delete_confirm": "Are you sure you want to delete skill \"{{name}}\"?",
+    "delete_success": "Skill deleted successfully",
+    "search_placeholder": "Search skills",
+    "add": "Add",
+    "view_detail": "View Detail",
+    "no_skills": "No skills installed",
+    "no_skills_desc": "Import a skill package to get started",
+    "no_results": "No matching skills",
+    "builtin": "Built-in",
+    "user": "User",
+    "instructions": "Instructions",
+    "resources": "Resources",
+    "load_failed": "Failed to load skill content",
+    "skill_label": "Skill"
   },
 
   "scheduled_tasks": {
