@@ -5,7 +5,6 @@
  */
 
 import { ipcMain, dialog } from "electron";
-import fs from "node:fs";
 import { windowContextManager } from "../services/window-context-manager";
 import { successResponse, errorResponse } from "../utils/ipc-response";
 
@@ -50,8 +49,7 @@ export function registerSkillHandlers(): void {
         return errorResponse("Cancelled");
       }
 
-      const buf = fs.readFileSync(result.filePaths[0]);
-      const skill = await service.importFromZip(buf);
+      const skill = await service.importFromZip(result.filePaths[0]);
       return successResponse(skill);
     } catch (error) {
       return errorResponse(error);
@@ -98,4 +96,21 @@ export function registerSkillHandlers(): void {
       return errorResponse(error);
     }
   });
+
+  ipcMain.handle(
+    "skills:load-resource",
+    async (_e, name: string, relativePath: string) => {
+      try {
+        if (!name || !relativePath || relativePath.includes("..")) {
+          return errorResponse("Invalid parameters");
+        }
+        const service = getService();
+        if (!service) return errorResponse("SkillService not available");
+        const text = await service.loadResource(name, relativePath);
+        return successResponse(text);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    },
+  );
 }

@@ -120,6 +120,7 @@ const api = {
   skillsImportFolder: () => safeInvoke('skills:import-folder'),
   skillsDelete: (name: string) => safeInvoke('skills:delete', name),
   skillsLoad: (name: string) => safeInvoke('skills:load', name),
+  skillsLoadResource: (name: string, path: string) => safeInvoke('skills:load-resource', name, path),
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

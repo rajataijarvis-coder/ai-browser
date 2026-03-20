@@ -124,17 +124,36 @@ export class SkillService implements ISkillService {
     return this.cache.get(metadata.name)!;
   }
 
-  /** Import skill from zip */
-  async importFromZip(zipBuffer: Buffer): Promise<SkillPackage> {
-    const AdmZip = (await import("adm-zip")).default;
-    const zip = new AdmZip(zipBuffer);
-    const tempDir = path.join(
-      app.getPath("temp"),
-      `skill-${Date.now()}`
-    );
+  /** Import skill from zip (cross-platform, no external binaries) */
+  async importFromZip(zipPath: string): Promise<SkillPackage> {
+    const { createReadStream } = await import("node:fs");
+    const { pipeline } = await import("node:stream/promises");
+    const { Parse } = await import("unzipper");
+
+    const tempDir = path.join(app.getPath("temp"), `skill-${Date.now()}`);
+    fs.mkdirSync(tempDir, { recursive: true });
 
     try {
-      zip.extractAllTo(tempDir, true);
+      const zip = createReadStream(zipPath).pipe(Parse());
+      for await (const entry of zip) {
+        const entryPath = entry.path as string;
+        const fullPath = path.join(tempDir, entryPath);
+
+        // Skip __MACOSX and hidden files
+        if (entryPath.startsWith("__MACOSX") || entryPath.split("/").some((p: string) => p.startsWith("."))) {
+          entry.autodrain();
+          continue;
+        }
+
+        if (entry.type === "Directory") {
+          fs.mkdirSync(fullPath, { recursive: true });
+          entry.autodrain();
+        } else {
+          fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+          await pipeline(entry, fs.createWriteStream(fullPath));
+        }
+      }
+
       const skillRoot = this.findSkillRoot(tempDir);
       return this.importFromFolder(skillRoot);
     } finally {
@@ -270,13 +289,10 @@ export class SkillService implements ISkillService {
     if (fs.existsSync(path.join(tempDir, "SKILL.md"))) return tempDir;
 
     const entries = fs.readdirSync(tempDir, { withFileTypes: true });
-    const sub = entries.find((e) => e.isDirectory());
-    if (
-      sub &&
-      fs.existsSync(path.join(tempDir, sub.name, "SKILL.md"))
-    ) {
-      return path.join(tempDir, sub.name);
-    }
+    const match = entries.find(
+      (e) => e.isDirectory() && fs.existsSync(path.join(tempDir, e.name, "SKILL.md"))
+    );
+    if (match) return path.join(tempDir, match.name);
 
     throw new Error("SKILL.md not found in archive");
   }
