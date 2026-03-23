@@ -443,10 +443,10 @@ export class EkoService {
   }
 
   /** Generate workflow and loop confirm until confirmed or cancelled */
-  private async generateAndConfirm(taskId: string, prompt: string): Promise<boolean> {
+  private async generateAndConfirm(taskId: string, prompt: string, contextParams?: Record<string, string>): Promise<boolean> {
     if (!this.eko) return false;
 
-    await this.eko.generate(prompt, taskId);
+    await this.eko.generate(prompt, taskId, contextParams);
 
     // Loop: confirm → regenerate → confirm → ...
     while (true) {
@@ -454,26 +454,53 @@ export class EkoService {
       if (result === 'confirm') return true;
       if (result === 'cancel') return false;
       // regenerate: re-generate and loop back
-      await this.eko.generate(prompt, taskId);
+      await this.eko.generate(prompt, taskId, contextParams);
     }
+  }
+
+  /** Extract <use_skill> tag and load skill instructions for Planner */
+  private async extractSkillContext(message: string): Promise<{ cleanMessage: string; skillContext?: string }> {
+    const match = message.match(/<use_skill\s+name="([^"]+)"\s*\/>/);
+    if (!match) return { cleanMessage: message };
+
+    const skillName = match[1];
+    const content = await this.skillService.loadSkill(skillName);
+    if (!content) return { cleanMessage: message };
+
+    const cleanMessage = message.replace(match[0], '').trim();
+    const skillContext = [
+      `## Skill: ${content.metadata.name}`,
+      content.instructions.trim(),
+      content.resources.length > 0
+        ? `\nAvailable resources (base: ${content.basePath}):\n${content.resources.map(r => `  - ${r}`).join('\n')}`
+        : '',
+    ].filter(Boolean).join('\n');
+
+    return { cleanMessage, skillContext };
   }
 
   async run(message: string, skipConfirm = false): Promise<EkoResult | null> {
     let taskId: string | null = null;
     try {
+      // Extract skill context for Planner if /skill-name was used
+      const { cleanMessage, skillContext } = await this.extractSkillContext(message);
+      const contextParams: Record<string, string> | undefined = skillContext
+        ? { planExtPrompt: skillContext }
+        : undefined;
+
       // Generate unique taskId for this execution
       taskId = randomUUID();
 
       // Create Eko instance with task-specific work directory
       this.eko = this.createEkoForTask(taskId);
       this.runningTaskIds.add(taskId);
-      this.taskPrompts.set(taskId, message);
+      this.taskPrompts.set(taskId, cleanMessage);
       this.thinkingStreamIdMap = null;
 
       if (skipConfirm) {
-        await this.eko.generate(message, taskId);
+        await this.eko.generate(cleanMessage, taskId, contextParams);
       } else {
-        const confirmed = await this.generateAndConfirm(taskId, message);
+        const confirmed = await this.generateAndConfirm(taskId, cleanMessage, contextParams);
         if (!confirmed) {
           return { taskId, success: false, stopReason: 'abort', result: 'User cancelled workflow' };
         }
@@ -501,15 +528,23 @@ export class EkoService {
     }
 
     try {
-      // Reset aborted context before modify to avoid stale abort signal
+      // Extract skill context and inject into existing task context
+      const { cleanMessage, skillContext } = await this.extractSkillContext(message);
       const context = this.eko.getTask(taskId);
+
+      // Reset aborted context before modify to avoid stale abort signal
       if (context?.controller?.signal?.aborted) {
         context.reset();
       }
 
-      await this.eko.modify(taskId, message);
+      // Inject skill context into existing task variables
+      if (skillContext && context) {
+        context.variables.set('planExtPrompt', skillContext);
+      }
+
+      await this.eko.modify(taskId, cleanMessage);
       this.runningTaskIds.add(taskId);
-      this.taskPrompts.set(taskId, message);
+      this.taskPrompts.set(taskId, cleanMessage);
 
       // Loop: confirm → regenerate → confirm → ...
       while (true) {
@@ -519,7 +554,7 @@ export class EkoService {
         }
         if (result === 'confirm') break;
         // regenerate
-        await this.eko.modify(taskId, message);
+        await this.eko.modify(taskId, cleanMessage);
       }
 
       return await this.eko.execute(taskId);
