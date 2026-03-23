@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
-import { Input, Button, App } from 'antd'
+import { Input, Button, App, type GetRef } from 'antd'
 import { SendMessage, MicOn, MicOff } from '@/icons/deepfundai-icons'
 import { ScheduledTaskModal, ScheduledTaskListPanel } from '@/components/scheduled-task'
 import { useScheduledTaskStore } from '@/stores/scheduled-task-store'
@@ -14,10 +14,13 @@ import { useVoiceInput } from '@/hooks/useVoiceInput'
 import { useHasValidProvider } from '@/hooks/useHasValidProvider'
 import { logger } from '@/utils/logger'
 import { ModeSwitch } from '@/components/chat/ModeSwitch'
+import { SkillCommandPopover } from '@/components/chat/SkillCommandPopover'
 import { TaskMode } from '@/models'
 
 export default function Home() {
     const [query, setQuery] = useState('')
+    const [showSkillPopover, setShowSkillPopover] = useState(false)
+    const textareaRef = useRef<GetRef<typeof Input.TextArea>>(null)
     const [taskMode, setTaskMode] = useState<TaskMode>(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('taskMode');
@@ -78,12 +81,31 @@ export default function Home() {
         }
     }, [hasValidProvider, query, router, antdMessage, t])
 
+    // Whether user is typing a /command (no space yet)
+    const isTypingCommand = query.startsWith('/') && !query.includes(' ') && query.length > 0;
+
     // Handle Enter key
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (showSkillPopover && isTypingCommand) {
+            if (['ArrowUp', 'ArrowDown', 'Escape'].includes(e.key)) return;
+            if (e.key === 'Enter' && !e.shiftKey) return;
+        }
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
             handleSendMessage()
         }
+    }
+
+    const handleQueryChange = (value: string) => {
+        setQuery(value);
+        setShowSkillPopover(value.startsWith('/'));
+    }
+
+    const handleSkillSelect = (skillName: string) => {
+        setQuery(`/${skillName} `);
+        setShowSkillPopover(false);
+        // Focus textarea so user can continue typing args
+        setTimeout(() => textareaRef.current?.focus(), 0);
     }
 
     return (
@@ -102,9 +124,16 @@ export default function Home() {
                     <div className='gradient-border w-[740px] mt-[30px]' style={{ height: 'auto' }}>
                         <div className='bg-tool-call dark:bg-tool-call-dark rounded-xl w-full h-full p-4'>
                             <div className='relative h-[160px] border border-solid border-gray-300 dark:border-white/20 rounded'>
+                                <SkillCommandPopover
+                                    query={query}
+                                    visible={showSkillPopover && isTypingCommand}
+                                    onSelect={handleSkillSelect}
+                                    onClose={() => setShowSkillPopover(false)}
+                                />
                                 <Input.TextArea
+                                    ref={textareaRef}
                                     value={query}
-                                    onChange={(e) => setQuery(e.target.value)}
+                                    onChange={(e) => handleQueryChange(e.target.value)}
                                     onKeyDown={handleKeyDown}
                                     className='!h-full !bg-transparent !text-text-01 dark:!text-text-01-dark !placeholder-text-12 dark:!placeholder-text-12-dark !py-3 !px-4 !pb-12 !pr-20 !border-none !outline-none focus:!shadow-none'
                                     placeholder={t('input_placeholder')}
