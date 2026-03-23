@@ -65,5 +65,6 @@
   "mode_chat": "Chat",
   "mode_explore": "Deep Explore",
   "mode_chat_desc": "Quick Q&A, search, webpage analysis",
-  "mode_explore_desc": "Complex tasks, multi-step workflows"
+  "mode_explore_desc": "Complex tasks, multi-step workflows",
+  "skill_not_found": "Skill not found"
 }
