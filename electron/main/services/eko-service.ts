@@ -10,6 +10,7 @@ import { TabManager } from "./tab-manager";
 import { AppChatService } from "./app-chat-service";
 import { AppBrowserService } from "./app-browser-service";
 import { SkillService } from "./skill-service";
+import { MemoryService } from "./memory";
 import type { AgentMcpConfig, McpServiceConfig } from "../models/settings";
 import type { HumanRequestMessage, HumanResponseMessage, HumanInteractionContext } from "../../../src/models/human-interaction";
 
@@ -52,13 +53,19 @@ export class EkoService {
   // Global services for eko-core
   private appChatService: AppChatService;
   private skillService: SkillService;
+  private memoryService: MemoryService;
 
   constructor(mainWindow: BrowserWindow, tabManager: TabManager) {
     this.mainWindow = mainWindow;
     this.tabManager = tabManager;
     this.skillService = new SkillService();
+    this.memoryService = new MemoryService();
     this.appChatService = this.initializeGlobalServices();
     this.initializeEko();
+    // Async init memory (non-blocking)
+    this.memoryService.initialize().catch(err =>
+      console.error('[EkoService] Memory init failed:', err)
+    );
   }
 
   /** Inject ChatService & BrowserService into eko-core global (only once) */
@@ -77,6 +84,7 @@ export class EkoService {
     if (!ekoGlobal.chatService) {
       const searchConfig = SettingsManager.getInstance().getAppSettings().chat.searchProvider;
       const chatService = new AppChatService(searchConfig);
+      chatService.setMemoryService(this.memoryService);
       ekoGlobal.chatService = chatService;
       console.log("[EkoService] Global services injected");
       return chatService;
@@ -877,7 +885,44 @@ export class EkoService {
     } finally {
       this.runningTaskIds.delete(chatId);
       this.chatAbortControllers.delete(chatId);
+      this.triggerMemoryExtraction();
     }
+  }
+
+  /** Trigger async memory extraction from recent chat messages */
+  private triggerMemoryExtraction(): void {
+    if (!this.chatAgent) return;
+    try {
+      const memory = this.chatAgent.getMemory();
+      const ekoMessages = memory.getMessages();
+      if (ekoMessages.length < 2) return;
+
+      // Convert EkoMessage to simple format for extraction
+      const messages = ekoMessages
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => ({
+          role: m.role,
+          content: typeof m.content === 'string'
+            ? m.content
+            : (m.content as Array<{ type: string; text?: string }>)
+                .filter(p => p.type === 'text')
+                .map(p => p.text || '')
+                .join('\n'),
+        }))
+        .filter(m => m.content.trim());
+
+      if (messages.length < 2) return;
+
+      this.memoryService.extractFromConversation(messages)
+        .catch(err => console.error('[EkoService] Memory extraction failed:', err));
+    } catch (err) {
+      console.error('[EkoService] Memory extraction trigger failed:', err);
+    }
+  }
+
+  /** Get memory service instance */
+  getMemoryService(): MemoryService {
+    return this.memoryService;
   }
 
   /** Cancel a running chat */
@@ -905,6 +950,9 @@ export class EkoService {
       const chatId = this.chatAgent.getChatContext().getChatId();
       ekoGlobal.chatMap?.delete(chatId);
     }
+
+    // Flush pending memory writes
+    await this.memoryService.flush();
 
     this.rejectAllHumanRequests(new Error('EkoService destroyed'));
     this.eko = null;

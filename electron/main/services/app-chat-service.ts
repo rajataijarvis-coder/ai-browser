@@ -8,12 +8,19 @@ import type { ChatService, WebSearchResult, EkoMessage } from "@jarvis-agent/cor
 import type { SearchProvider } from "./search-provider";
 import { createSearchProvider } from "./search-provider";
 import type { SearchProviderConfig } from "../models/settings";
+import type { MemoryService } from "./memory";
 
 export class AppChatService implements ChatService {
   private searchProvider: SearchProvider | null;
+  private memoryService: MemoryService | null = null;
 
   constructor(config?: SearchProviderConfig) {
     this.searchProvider = createSearchProvider(config);
+  }
+
+  /** Inject memory service for recall */
+  setMemoryService(service: MemoryService): void {
+    this.memoryService = service;
   }
 
   /** Hot-swap search provider on config change */
@@ -56,9 +63,15 @@ export class AppChatService implements ChatService {
   /** Messages managed by frontend */
   async addMessage(_chatId: string, _messages: EkoMessage[]): Promise<void> {}
 
-  /** Memory recall — reserved for future extension */
-  async memoryRecall(_chatId: string, _prompt: string): Promise<string> {
-    return "";
+  /** Recall relevant memories for current prompt */
+  async memoryRecall(chatId: string, prompt: string): Promise<string> {
+    if (!this.memoryService) return "";
+    try {
+      return await this.memoryService.recall(chatId, prompt);
+    } catch (err) {
+      console.error("[AppChatService] Memory recall failed:", err);
+      return "";
+    }
   }
 
   /** Convert file to data URL */
