@@ -6,7 +6,7 @@
  */
 
 import { store } from './store';
-import type { AppSettings, GeneralSettings, ChatSettings, AgentConfig, ProviderConfig } from '../models';
+import type { AppSettings, GeneralSettings, ChatSettings, AgentConfig, ProviderConfig, MemorySettings } from '../models';
 import { BUILTIN_PROVIDER_IDS, createBuiltinProviderConfig } from '../models/settings';
 
 /**
@@ -75,6 +75,14 @@ const getDefaultAppSettings = (): AppSettings => {
       requestTimeout: 30,
       retryAttempts: 3,
       customUserAgent: ''
+    },
+    memory: {
+      enabled: true,
+      autoExtract: true,
+      autoRecall: true,
+      maxRecallResults: 5,
+      similarityThreshold: 0.1,
+      retentionDays: 90
     }
   };
 };
@@ -99,7 +107,10 @@ export class SettingsManager {
    * Get complete app settings
    */
   public getAppSettings(): AppSettings {
-    return store.get(this.SETTINGS_KEY, getDefaultAppSettings()) as AppSettings;
+    const defaults = getDefaultAppSettings();
+    const stored = store.get(this.SETTINGS_KEY, defaults) as AppSettings;
+    // Merge defaults for newly added fields (e.g. memory)
+    return { ...defaults, ...stored, memory: { ...defaults.memory, ...stored.memory } };
   }
 
   /**
