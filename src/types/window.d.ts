@@ -108,6 +108,14 @@ declare global {
       skillsLoad: (name: string) => Promise<IpcResponse<unknown>>
       skillsLoadResource: (name: string, path: string) => Promise<IpcResponse<string>>
 
+      // Memory APIs
+      memoryList: (filter?: { keyword?: string; source?: string }) => Promise<IpcResponse<Array<{ id: string; content: string; source: 'auto' | 'manual'; createdAt: number; updatedAt: number; tags: string[] }>>>
+      memorySearch: (query: string, maxResults?: number) => Promise<IpcResponse<Array<{ id: string; content: string; source: 'auto' | 'manual'; createdAt: number; updatedAt: number; tags: string[]; score: number }>>>
+      memoryAdd: (content: string) => Promise<IpcResponse<{ id: string; content: string; source: 'auto' | 'manual' }>>
+      memoryDelete: (id: string) => Promise<IpcResponse<boolean>>
+      memoryClear: () => Promise<IpcResponse<boolean>>
+      memoryStats: () => Promise<IpcResponse<{ total: number; auto: number; manual: number }>>
+
       // Generic IPC invoke method
       invoke: <T = any>(channel: string, ...args: any[]) => Promise<T>
     }
