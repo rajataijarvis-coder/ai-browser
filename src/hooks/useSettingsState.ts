@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { isEqual } from 'lodash';
-import { AppSettings, GeneralSettings, ChatSettings, UISettings, NetworkSettings, AgentSettings, McpSettings, ProviderConfig } from '@/models/settings';
+import { AppSettings, GeneralSettings, ChatSettings, UISettings, NetworkSettings, AgentSettings, McpSettings, ProviderConfig, MemorySettings } from '@/models/settings';
 import { getDefaultSettings } from '@/config/settings-defaults';
 
 export function useSettingsState() {
@@ -210,6 +210,21 @@ export function useSettingsState() {
     });
   }, []);
 
+  /**
+   * Update memory settings
+   */
+  const updateMemory = useCallback((
+    newMemory: MemorySettings | ((prev: MemorySettings) => MemorySettings)
+  ) => {
+    setCurrentConfigs(prev => {
+      if (!prev) return prev;
+      const memory = typeof newMemory === 'function'
+        ? newMemory(prev.memory)
+        : newMemory;
+      return { ...prev, memory };
+    });
+  }, []);
+
   const saveConfigs = useCallback(async () => {
     if (!currentConfigs) return;
 
@@ -247,6 +262,7 @@ export function useSettingsState() {
     agent: currentConfigs?.agent ?? null,
     mcp: currentConfigs?.mcp ?? null,
     ui: currentConfigs?.ui ?? null,
+    memory: currentConfigs?.memory ?? null,
     network: currentConfigs?.network ?? null,
     loading,
     saving,
@@ -261,6 +277,7 @@ export function useSettingsState() {
     updateMcp,
     updateUI,
     updateNetwork,
+    updateMemory,
     saveConfigs,
     resetConfigs,
     reloadConfigs

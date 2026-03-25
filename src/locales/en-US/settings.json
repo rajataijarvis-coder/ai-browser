@@ -8,28 +8,24 @@
   "import": "Import Settings",
   "export": "Export Settings",
   "reset_settings": "Reset Settings",
-
   "unsaved_changes_dialog": {
     "title": "Unsaved Changes",
     "content": "You have unsaved changes. Do you want to save before closing?",
     "save": "Save",
     "discard": "Discard"
   },
-
   "import_dialog": {
     "title": "Import Settings",
     "content": "This will replace all your current settings. Are you sure?",
     "ok": "Import",
     "cancel": "Cancel"
   },
-
   "reset_dialog": {
     "title": "Reset Settings",
     "content": "This will reset all settings to their default values. This action cannot be undone. Are you sure?",
     "ok": "Reset",
     "cancel": "Cancel"
   },
-
   "messages": {
     "saved_successfully": "Settings saved successfully",
     "save_failed": "Failed to save settings",
@@ -41,7 +37,6 @@
     "reset_successfully": "Settings reset to defaults",
     "reset_failed": "Failed to reset settings"
   },
-
   "sidebar": {
     "general": "General",
     "providers": "Providers",
@@ -56,7 +51,6 @@
     "about": "About",
     "coming_soon": "Soon"
   },
-
   "providers": {
     "title": "Providers",
     "description": "Configure AI model providers and API keys",
@@ -105,7 +99,6 @@
     "fetch_success": "Fetched {{count}} models successfully",
     "fetch_failed": "Failed to fetch models. Please check your API key and network connection."
   },
-
   "general": {
     "title": "General",
     "description": "General application settings and preferences",
@@ -127,7 +120,6 @@
     "close_to_tray": "Close to tray",
     "close_to_tray_desc": "Keep app running in system tray when closed"
   },
-
   "chat": {
     "title": "Chat",
     "description": "Configure chat parameters and behavior",
@@ -169,7 +161,6 @@
     "search_base_url": "Base URL",
     "search_base_url_desc": "SearXNG instance URL"
   },
-
   "agent": {
     "title": "Agent",
     "description": "Configure AI agents and MCP tools for task execution",
@@ -230,7 +221,6 @@
     "builtin_tools": "Built-in Tools",
     "builtin_tools_desc": "Tools provided by the agent (read-only)"
   },
-
   "mcp": {
     "title": "MCP Services",
     "description": "Add MCP services for Agents to use",
@@ -260,7 +250,6 @@
     "empty_title": "No MCP Services",
     "empty_desc": "Add an MCP service to extend your agents with external tools"
   },
-
   "skills": {
     "title": "Skills",
     "description": "Manage skill packages that guide AI agents with domain knowledge and workflows",
@@ -284,7 +273,6 @@
     "load_failed": "Failed to load skill content",
     "skill_label": "Skill"
   },
-
   "scheduled_tasks": {
     "title": "Scheduled Tasks",
     "description": "Manage automated tasks that run on a schedule",
@@ -307,7 +295,6 @@
     "every_month": "Every Month",
     "custom": "Custom"
   },
-
   "ui": {
     "title": "User Interface",
     "description": "Customize the look and feel of the application",
@@ -335,7 +322,6 @@
     "word_wrap": "Word wrap",
     "word_wrap_desc": "Wrap long lines automatically"
   },
-
   "network": {
     "title": "Network",
     "description": "Configure proxy, timeout, retry, and User-Agent settings",
@@ -364,7 +350,6 @@
     "proxy_status_success": "Connected",
     "proxy_status_failed": "Failed"
   },
-
   "about": {
     "title": "About",
     "version": "Version",
@@ -373,5 +358,58 @@
     "github": "GitHub Repository",
     "license": "License",
     "copyright": "© 2025 DeepFundAI. All rights reserved."
+  },
+  "memory": {
+    "title": "Memory",
+    "feature": {
+      "title": "Memory Feature",
+      "enabled": "Enable Memory",
+      "enabled_desc": "AI will remember important information from conversations and provide personalized responses."
+    },
+    "recall": {
+      "title": "Memory Recall",
+      "auto_recall": "Auto Recall",
+      "auto_recall_desc": "Automatically search and inject relevant memories before each conversation.",
+      "max_results": "Max Recall Results",
+      "max_results_desc": "Maximum number of relevant memories to inject (1-20).",
+      "similarity_threshold": "Similarity Threshold",
+      "similarity_desc": "Minimum similarity score for memory retrieval. Lower is more lenient.",
+      "lenient": "Lenient (0%)",
+      "strict": "Strict (100%)"
+    },
+    "extract": {
+      "title": "Memory Extraction",
+      "auto_extract": "Auto Extract",
+      "auto_extract_desc": "Automatically extract and store important information from conversations as new memories."
+    },
+    "model": {
+      "title": "Memory Tool Model",
+      "desc": "Specify a model for memory operations. Leave empty to use default tool model.",
+      "placeholder": "Use default model"
+    },
+    "stats": {
+      "title": "Statistics",
+      "total": "Total Memories",
+      "auto": "Auto Generated",
+      "manual": "Manually Added"
+    },
+    "add": {
+      "title": "Add Memory",
+      "placeholder": "Enter what you want AI to remember...",
+      "button": "+ Add Memory"
+    },
+    "search": {
+      "title": "Search Memories",
+      "placeholder": "Search by keyword..."
+    },
+    "list": {
+      "title": "Memory List",
+      "refresh": "Refresh",
+      "clear_all": "Clear All",
+      "clear_confirm": "Are you sure you want to delete all memories? This cannot be undone.",
+      "empty": "No memories yet. Memories will be automatically created from your conversations, or you can add them manually.",
+      "auto": "Auto",
+      "manual": "Manual"
+    }
   }
 }

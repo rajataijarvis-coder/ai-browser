@@ -20,6 +20,7 @@ import { NetworkPanel } from './panels/NetworkPanel';
 import { AboutPanel } from './panels/AboutPanel';
 import { McpPanel } from './panels/McpPanel';
 import { SkillsPanel } from './panels/SkillsPanel';
+import { MemoryPanel } from './panels/MemoryPanel';
 import { useSettingsState } from '@/hooks/useSettingsState';
 import { getDefaultSettings } from '@/config/settings-defaults';
 import { logger } from '@/utils/logger';
@@ -77,6 +78,7 @@ export const SettingsLayout: React.FC<SettingsLayoutProps> = ({
     mcp,
     ui,
     network,
+    memory,
     loading,
     saving,
     hasChanges,
@@ -89,6 +91,7 @@ export const SettingsLayout: React.FC<SettingsLayoutProps> = ({
     updateMcp,
     updateUI,
     updateNetwork,
+    updateMemory,
     saveConfigs,
     resetConfigs
   } = useSettingsState();
@@ -350,14 +353,10 @@ export const SettingsLayout: React.FC<SettingsLayoutProps> = ({
         ) : null;
       case 'memory':
         return (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center text-text-12 dark:text-text-12-dark">
-              <div className="text-6xl mb-4">🧠</div>
-              <div className="text-2xl font-semibold mb-2">Memory Settings</div>
-              <div className="text-sm">Configure conversation memory and context management</div>
-              <div className="text-xs mt-2 text-gray-500 dark:text-gray-500">Coming Soon</div>
-            </div>
-          </div>
+          <MemoryPanel
+            settings={memory ?? undefined}
+            onSettingsChange={updateMemory}
+          />
         );
       case 'about':
         return <AboutPanel />;

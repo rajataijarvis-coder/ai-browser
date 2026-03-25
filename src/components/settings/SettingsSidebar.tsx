@@ -93,8 +93,7 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
     {
       id: 'memory',
       labelKey: 'sidebar.memory',
-      icon: <BulbOutlined />,
-      comingSoon: true
+      icon: <BulbOutlined />
     },
     {
       id: 'about',

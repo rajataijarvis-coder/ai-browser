@@ -8,28 +8,24 @@
   "import": "导入设置",
   "export": "导出设置",
   "reset_settings": "重置设置",
-
   "unsaved_changes_dialog": {
     "title": "未保存的更改",
     "content": "您有未保存的更改，是否要在关闭前保存？",
     "save": "保存",
     "discard": "放弃"
   },
-
   "import_dialog": {
     "title": "导入设置",
     "content": "这将替换您当前的所有设置，确定要继续吗？",
     "ok": "导入",
     "cancel": "取消"
   },
-
   "reset_dialog": {
     "title": "重置设置",
     "content": "这将把所有设置重置为默认值，此操作无法撤销。确定要继续吗？",
     "ok": "重置",
     "cancel": "取消"
   },
-
   "messages": {
     "saved_successfully": "设置保存成功",
     "save_failed": "保存设置失败",
@@ -41,7 +37,6 @@
     "reset_successfully": "设置已重置为默认值",
     "reset_failed": "重置设置失败"
   },
-
   "sidebar": {
     "general": "通用",
     "providers": "提供商",
@@ -56,7 +51,6 @@
     "about": "关于",
     "coming_soon": "即将推出"
   },
-
   "providers": {
     "title": "提供商",
     "description": "配置 AI 模型提供商和 API 密钥",
@@ -105,7 +99,6 @@
     "fetch_success": "成功获取 {{count}} 个模型",
     "fetch_failed": "获取模型失败。请检查您的 API 密钥和网络连接。"
   },
-
   "general": {
     "title": "通用",
     "description": "通用应用设置和偏好",
@@ -127,7 +120,6 @@
     "close_to_tray": "关闭到托盘",
     "close_to_tray_desc": "关闭窗口时保持应用在系统托盘中运行"
   },
-
   "chat": {
     "title": "会话",
     "description": "配置会话参数和行为",
@@ -169,7 +161,6 @@
     "search_base_url": "服务地址",
     "search_base_url_desc": "SearXNG 实例的访问地址"
   },
-
   "agent": {
     "title": "智能体",
     "description": "配置 AI 智能体和 MCP 工具以执行任务",
@@ -230,7 +221,6 @@
     "builtin_tools": "内置工具",
     "builtin_tools_desc": "智能体自带的工具（只读）"
   },
-
   "mcp": {
     "title": "MCP 服务",
     "description": "支持添加 MCP 服务，供 Agent 使用",
@@ -260,7 +250,6 @@
     "empty_title": "暂无 MCP 服务",
     "empty_desc": "添加 MCP 服务以使用外部工具扩展智能体能力"
   },
-
   "skills": {
     "title": "技能",
     "description": "管理技能包，为 AI 智能体提供领域知识和工作流指导",
@@ -284,7 +273,6 @@
     "load_failed": "加载技能内容失败",
     "skill_label": "技能"
   },
-
   "scheduled_tasks": {
     "title": "定时任务",
     "description": "管理按计划运行的自动化任务",
@@ -307,7 +295,6 @@
     "every_month": "每月",
     "custom": "自定义"
   },
-
   "ui": {
     "title": "用户界面",
     "description": "自定义应用的外观和感觉",
@@ -335,7 +322,6 @@
     "word_wrap": "自动换行",
     "word_wrap_desc": "自动换行显示长行"
   },
-
   "network": {
     "title": "网络",
     "description": "配置代理、超时、重试和 User-Agent 设置",
@@ -364,7 +350,6 @@
     "proxy_status_success": "连接成功",
     "proxy_status_failed": "连接失败"
   },
-
   "about": {
     "title": "关于",
     "version": "版本",
@@ -373,5 +358,58 @@
     "github": "GitHub 仓库",
     "license": "许可证",
     "copyright": "© 2025 DeepFundAI. 保留所有权利。"
+  },
+  "memory": {
+    "title": "记忆",
+    "feature": {
+      "title": "记忆功能",
+      "enabled": "启用记忆",
+      "enabled_desc": "启用后，AI 将记住您对话中的重要信息，并使用这些信息提供更个性化的回复。"
+    },
+    "recall": {
+      "title": "记忆检索",
+      "auto_recall": "自动检索记忆",
+      "auto_recall_desc": "在每次对话前自动搜索并注入相关记忆以提供上下文。",
+      "max_results": "最大检索记忆数",
+      "max_results_desc": "注入对话上下文的相关记忆最大数量（1-20）。",
+      "similarity_threshold": "相似度阈值",
+      "similarity_desc": "检索记忆所需的最低相似度分数。值越低越宽松。",
+      "lenient": "宽松 (0%)",
+      "strict": "严格 (100%)"
+    },
+    "extract": {
+      "title": "记忆总结",
+      "auto_extract": "自动总结对话",
+      "auto_extract_desc": "自动从对话中提取并存储重要信息作为新记忆。"
+    },
+    "model": {
+      "title": "记忆工具模型",
+      "desc": "为记忆操作指定专用工具模型。留空则使用通用工具模型。",
+      "placeholder": "使用默认模型"
+    },
+    "stats": {
+      "title": "统计",
+      "total": "记忆总数",
+      "auto": "自动生成",
+      "manual": "手动添加"
+    },
+    "add": {
+      "title": "添加记忆",
+      "placeholder": "输入您希望 AI 记住的内容...",
+      "button": "+ 添加记忆"
+    },
+    "search": {
+      "title": "搜索记忆",
+      "placeholder": "按关键词搜索..."
+    },
+    "list": {
+      "title": "记忆列表",
+      "refresh": "刷新",
+      "clear_all": "清空全部",
+      "clear_confirm": "确定要删除所有记忆吗？此操作不可撤销。",
+      "empty": "暂无记忆。记忆会从您的对话中自动创建，或者您可以手动添加。",
+      "auto": "自动",
+      "manual": "手动"
+    }
   }
 }
