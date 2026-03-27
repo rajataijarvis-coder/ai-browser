@@ -4,9 +4,14 @@
  * POSITION: Core orchestrator for cross-session memory system
  */
 
+import { net } from 'electron';
 import { MemoryStore } from './memory-store';
 import { MemoryIndexer } from './memory-indexer';
 import { tokenize } from './tokenizer';
+import { resolveEmbeddingProvider, embed, embedBatch } from './embedding-provider';
+
+/** Use Electron net.fetch which respects session proxy settings */
+const proxyFetch = net.fetch.bind(net);
 import { SettingsManager } from '../../utils/settings-manager';
 import { ConfigManager } from '../../utils/config-manager';
 import type { MemoryEntry, MemoryFilter, MemoryStats, ScoredMemory } from './types';
@@ -26,7 +31,7 @@ Return ONLY a valid JSON array (no markdown, no explanation):
 Conversation:
 `;
 
-const DEDUP_THRESHOLD = 0.6;
+const DEDUP_THRESHOLD = 3.0;
 
 export class MemoryService {
   private store: MemoryStore;
@@ -55,6 +60,11 @@ export class MemoryService {
       }
     }
     console.log(`[MemoryService] Initialized with ${this.store.size} memories`);
+
+    // Background: embed memories missing vectors
+    this.embedAllMissing().catch(err =>
+      console.error('[MemoryService] Background embedding failed:', err)
+    );
   }
 
   /** Search memories relevant to prompt, return formatted string */
@@ -64,16 +74,27 @@ export class MemoryService {
     if (this.store.size === 0) return '';
 
     const entries = new Map(this.store.getAll().map(e => [e.id, e]));
-    const results = this.indexer.search(
-      prompt,
-      entries,
-      settings.maxRecallResults,
-      settings.similarityThreshold
-    );
+    let results: ScoredMemory[];
+
+    // Try hybrid search if embedding provider available
+    const embeddingConfig = resolveEmbeddingProvider();
+    if (embeddingConfig) {
+      try {
+        const queryEmbedding = await embed(embeddingConfig, prompt);
+        results = this.indexer.hybridSearch(
+          prompt, queryEmbedding, entries,
+          settings.maxRecallResults, settings.similarityThreshold
+        );
+      } catch (err) {
+        console.warn('[MemoryService] Vector search failed, fallback to BM25:', err);
+        results = this.indexer.search(prompt, entries, settings.maxRecallResults, settings.similarityThreshold);
+      }
+    } else {
+      results = this.indexer.search(prompt, entries, settings.maxRecallResults, settings.similarityThreshold);
+    }
 
     if (results.length === 0) return '';
 
-    // Record access for recalled memories
     for (const { entry } of results) {
       this.store.recordAccess(entry.id);
     }
@@ -163,7 +184,7 @@ export class MemoryService {
     const baseUrl = this.resolveBaseUrl(config);
     const url = `${baseUrl}/chat/completions`;
 
-    const resp = await fetch(url, {
+    const resp = await proxyFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -175,7 +196,6 @@ export class MemoryService {
         temperature: 0.3,
         max_tokens: 1024,
       }),
-      signal: AbortSignal.timeout(30000),
     });
 
     if (!resp.ok) {
@@ -194,7 +214,7 @@ export class MemoryService {
     const baseUrl = config.baseUrl?.replace(/\/$/, '') || 'https://api.anthropic.com/v1';
     const url = `${baseUrl}/messages`;
 
-    const resp = await fetch(url, {
+    const resp = await proxyFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -207,7 +227,6 @@ export class MemoryService {
         temperature: 0.3,
         max_tokens: 1024,
       }),
-      signal: AbortSignal.timeout(30000),
     });
 
     if (!resp.ok) {
@@ -256,16 +275,9 @@ export class MemoryService {
     for (const item of items) {
       if (!item.content?.trim()) continue;
 
-      // Dedup: check if similar memory exists
+      // Dedup: skip if very similar memory already exists
       const similar = this.indexer.search(item.content, entries, 1, DEDUP_THRESHOLD);
-      if (similar.length > 0) {
-        // Update existing instead of creating new
-        this.store.update(similar[0].entry.id, {
-          content: item.content.trim(),
-          tags: item.tags || [],
-        });
-        continue;
-      }
+      if (similar.length > 0) continue;
 
       const entry = this.store.add(
         item.content.trim(),
@@ -275,6 +287,11 @@ export class MemoryService {
       this.indexer.addDocument(entry);
       entries.set(entry.id, entry);
       saved.push(entry);
+    }
+
+    // Batch embed new entries (non-blocking)
+    if (saved.length > 0) {
+      this.embedEntries(saved).catch(() => {});
     }
 
     return saved;
@@ -301,6 +318,8 @@ export class MemoryService {
     const tags = tokenize(content).slice(0, 5);
     const entry = this.store.add(content, 'manual', tags);
     this.indexer.addDocument(entry);
+    // Async embed (non-blocking)
+    this.embedEntry(entry).catch(() => {});
     return entry;
   }
 
@@ -312,6 +331,75 @@ export class MemoryService {
   searchMemories(query: string, maxResults = 20): ScoredMemory[] {
     const entries = new Map(this.store.getAll().map(e => [e.id, e]));
     return this.indexer.search(query, entries, maxResults, 0);
+  }
+
+  // --- Embedding helpers ---
+
+  /** Embed a single entry */
+  private async embedEntry(entry: MemoryEntry): Promise<void> {
+    const config = resolveEmbeddingProvider();
+    if (!config) return;
+    try {
+      const vector = await embed(config, entry.content);
+      entry.embedding = vector;
+      entry.embeddingModel = `${config.providerId}/${config.model}`;
+      this.store.update(entry.id, {});
+    } catch (err) {
+      console.warn(`[MemoryService] Embed failed for ${entry.id}:`, err);
+    }
+  }
+
+  /** Batch embed multiple entries */
+  private async embedEntries(entries: MemoryEntry[]): Promise<void> {
+    const config = resolveEmbeddingProvider();
+    if (!config || entries.length === 0) return;
+    try {
+      const texts = entries.map(e => e.content);
+      const vectors = await embedBatch(config, texts);
+      const modelKey = `${config.providerId}/${config.model}`;
+      for (let i = 0; i < entries.length; i++) {
+        entries[i].embedding = vectors[i];
+        entries[i].embeddingModel = modelKey;
+      }
+      this.store.markDirty();
+    } catch (err) {
+      console.warn('[MemoryService] Batch embed failed:', err);
+    }
+  }
+
+  /** Background: embed all memories missing vectors */
+  private async embedAllMissing(): Promise<void> {
+    const config = resolveEmbeddingProvider();
+    if (!config) return;
+
+    const modelKey = `${config.providerId}/${config.model}`;
+    const missing = this.store.getAll().filter(
+      e => !e.embedding || e.embeddingModel !== modelKey
+    );
+    if (missing.length === 0) return;
+
+    console.log(`[MemoryService] Embedding ${missing.length} memories in background`);
+
+    // Process in batches of 20
+    let embedded = 0;
+    for (let i = 0; i < missing.length; i += 20) {
+      const batch = missing.slice(i, i + 20);
+      try {
+        const texts = batch.map(e => e.content);
+        const vectors = await embedBatch(config, texts);
+        for (let j = 0; j < batch.length; j++) {
+          batch[j].embedding = vectors[j];
+          batch[j].embeddingModel = modelKey;
+        }
+        embedded += batch.length;
+      } catch (err) {
+        console.warn(`[MemoryService] Background embed batch ${i} failed:`, err);
+        break;
+      }
+    }
+
+    if (embedded > 0) this.store.markDirty();
+    console.log(`[MemoryService] Background embedding complete: ${embedded}/${missing.length}`);
   }
 
   /** Flush pending writes */

@@ -15,6 +15,8 @@ export interface MemoryEntry {
   accessCount: number;
   lastAccessedAt: number;
   tags: string[];
+  embedding?: number[];
+  embeddingModel?: string;
 }
 
 export interface MemoryStats {

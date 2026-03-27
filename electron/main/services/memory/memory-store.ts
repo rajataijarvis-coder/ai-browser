@@ -107,6 +107,11 @@ export class MemoryStore {
     this.scheduleSave();
   }
 
+  /** Trigger save after external mutation */
+  markDirty(): void {
+    this.scheduleSave();
+  }
+
   delete(id: string): boolean {
     const deleted = this.entries.delete(id);
     if (deleted) this.scheduleSave();

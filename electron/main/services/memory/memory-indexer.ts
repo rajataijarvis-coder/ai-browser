@@ -1,6 +1,6 @@
 /**
  * INPUT: MemoryEntry[], tokenizer
- * OUTPUT: BM25 full-text search with time decay
+ * OUTPUT: BM25 + vector hybrid search with time decay
  * POSITION: Index layer for memory retrieval
  */
 
@@ -10,6 +10,8 @@ import { tokenize } from './tokenizer';
 const BM25_K1 = 1.5;
 const BM25_B = 0.75;
 const TIME_DECAY_HALF_LIFE_DAYS = 30;
+const VECTOR_WEIGHT = 0.6;
+const BM25_WEIGHT = 0.4;
 
 export class MemoryIndexer {
   /** term → Set<entryId> */
@@ -123,6 +125,65 @@ export class MemoryIndexer {
       .slice(0, topK);
   }
 
+  /** Cosine similarity vector search */
+  vectorSearch(queryEmbedding: number[], entries: Map<string, MemoryEntry>, topK: number, minScore: number): ScoredMemory[] {
+    const now = Date.now();
+    const results: ScoredMemory[] = [];
+
+    for (const entry of entries.values()) {
+      if (!entry.embedding?.length) continue;
+      const cosine = cosineSimilarity(queryEmbedding, entry.embedding);
+      const ageDays = (now - entry.updatedAt) / (24 * 60 * 60 * 1000);
+      const decay = 1 / (1 + ageDays / TIME_DECAY_HALF_LIFE_DAYS);
+      const score = cosine * decay;
+
+      if (score >= minScore) {
+        results.push({ entry, score });
+      }
+    }
+
+    return results.sort((a, b) => b.score - a.score).slice(0, topK);
+  }
+
+  /** Hybrid search: BM25 + vector with weighted fusion */
+  hybridSearch(
+    query: string,
+    queryEmbedding: number[],
+    entries: Map<string, MemoryEntry>,
+    topK: number,
+    minScore: number,
+  ): ScoredMemory[] {
+    const bm25Results = this.search(query, entries, topK * 2, 0);
+    const vectorResults = this.vectorSearch(queryEmbedding, entries, topK * 2, 0);
+
+    // Normalize scores to [0, 1] within each result set
+    const bm25Max = bm25Results[0]?.score || 1;
+    const vectorMax = vectorResults[0]?.score || 1;
+
+    // Merge by entry id with weighted fusion
+    const merged = new Map<string, { entry: MemoryEntry; score: number }>();
+
+    for (const r of bm25Results) {
+      const normalized = r.score / bm25Max;
+      merged.set(r.entry.id, { entry: r.entry, score: BM25_WEIGHT * normalized });
+    }
+
+    for (const r of vectorResults) {
+      const normalized = r.score / vectorMax;
+      const existing = merged.get(r.entry.id);
+      if (existing) {
+        existing.score += VECTOR_WEIGHT * normalized;
+      } else {
+        merged.set(r.entry.id, { entry: r.entry, score: VECTOR_WEIGHT * normalized });
+      }
+    }
+
+    return Array.from(merged.values())
+      .filter(r => r.score >= minScore)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, topK);
+  }
+
   private recalcAvgDocLength(): void {
     if (this.docLengths.size === 0) {
       this.avgDocLength = 0;
@@ -132,4 +193,17 @@ export class MemoryIndexer {
     for (const len of this.docLengths.values()) total += len;
     this.avgDocLength = total / this.docLengths.size;
   }
+}
+
+/** Cosine similarity between two vectors */
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0, normA = 0, normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  const denom = Math.sqrt(normA) * Math.sqrt(normB);
+  return denom === 0 ? 0 : dot / denom;
 }
