@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Button, Input, App, Tag, Empty, Typography } from 'antd';
+import { Button, Input, App, Tag, Empty, Typography, Select } from 'antd';
 import { BulbOutlined, SearchOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { ToggleSetting, SliderSetting } from '../components';
@@ -21,6 +21,7 @@ interface MemorySettings {
   similarityThreshold: number;
   retentionDays: number;
   memoryModel?: string;
+  embeddingModel?: string;
 }
 
 interface MemoryEntry {
@@ -65,6 +66,7 @@ export const MemoryPanel: React.FC<MemoryPanelProps> = ({
   const [newMemory, setNewMemory] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [embeddingModels, setEmbeddingModels] = useState<Array<{ value: string; label: string; group: string }>>([]);
 
   const handleChange = (updates: Partial<MemorySettings>) => {
     onSettingsChange?.({ ...settings, ...updates });
@@ -73,12 +75,14 @@ export const MemoryPanel: React.FC<MemoryPanelProps> = ({
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [statsRes, listRes] = await Promise.all([
+      const [statsRes, listRes, modelsRes] = await Promise.all([
         window.api.memoryStats(),
         window.api.memoryList(),
+        window.api.memoryEmbeddingModels(),
       ]);
       if (statsRes?.success && statsRes.data) setStats(statsRes.data);
       if (listRes?.success) setMemories(listRes.data || []);
+      if (modelsRes?.success) setEmbeddingModels(modelsRes.data || []);
     } catch {
       // Ignore
     } finally {
@@ -126,6 +130,20 @@ export const MemoryPanel: React.FC<MemoryPanelProps> = ({
   };
 
   const formatDate = (ts: number) => new Date(ts).toLocaleDateString();
+
+  /** Group embedding models by provider for Select options */
+  const buildGroupedOptions = (models: Array<{ value: string; label: string; group: string }>) => {
+    const groups = new Map<string, Array<{ value: string; label: string }>>();
+    for (const m of models) {
+      const list = groups.get(m.group) || [];
+      list.push({ value: m.value, label: m.label });
+      groups.set(m.group, list);
+    }
+    return Array.from(groups.entries()).map(([group, options]) => ({
+      label: group,
+      options,
+    }));
+  };
 
   const sortedMemories = [...memories].sort((a, b) => b.updatedAt - a.updatedAt);
 
@@ -217,6 +235,32 @@ export const MemoryPanel: React.FC<MemoryPanelProps> = ({
                   onChange={(checked) => handleChange({ autoExtract: checked })}
                 />
               </div>
+            </div>
+
+            <SettingsDivider />
+
+            {/* Embedding Model */}
+            <div>
+              <Text className="!text-text-01 dark:!text-text-01-dark text-lg font-semibold">
+                {t('memory.embedding.title')}
+              </Text>
+              <div className="text-xs text-text-12 dark:text-text-12-dark mt-1 mb-3">
+                {t('memory.embedding.desc')}
+              </div>
+              <Select
+                value={settings.embeddingModel || undefined}
+                onChange={(value) => handleChange({ embeddingModel: value || undefined })}
+                placeholder={t('memory.embedding.placeholder')}
+                allowClear
+                showSearch
+                className="w-full"
+                options={buildGroupedOptions(embeddingModels)}
+              />
+              {embeddingModels.length === 0 && (
+                <div className="text-xs text-text-12 dark:text-text-12-dark mt-2">
+                  {t('memory.embedding.no_provider')}
+                </div>
+              )}
             </div>
 
             <SettingsDivider />

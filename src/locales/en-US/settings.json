@@ -410,6 +410,12 @@
       "empty": "No memories yet. Memories will be automatically created from your conversations, or you can add them manually.",
       "auto": "Auto",
       "manual": "Manual"
+    },
+    "embedding": {
+      "title": "Embedding Model",
+      "desc": "Model for semantic memory search. Select an embedding model from your configured providers. Leave empty to use keyword search only.",
+      "placeholder": "Keyword search only (no embedding)",
+      "no_provider": "No embedding models available. Enable a provider with embedding support (OpenAI, Gemini, etc.) in Providers settings."
     }
   }
 }
