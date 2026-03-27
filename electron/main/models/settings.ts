@@ -231,6 +231,7 @@ export interface MemorySettings {
   similarityThreshold: number;
   retentionDays: number;
   memoryModel?: string;
+  embeddingModel?: string;  // e.g. "openai:text-embedding-3-small"
 }
 
 export interface AppSettings {

@@ -7,6 +7,7 @@
 import { ipcMain } from "electron";
 import { windowContextManager } from "../services/window-context-manager";
 import { successResponse, errorResponse } from "../utils/ipc-response";
+import { getAvailableEmbeddingModels } from "../services/memory/embedding-provider";
 
 export function registerMemoryHandlers(): void {
   const getService = () => {
@@ -74,6 +75,14 @@ export function registerMemoryHandlers(): void {
       const service = getService();
       if (!service) return errorResponse("MemoryService not available");
       return successResponse(service.getStats());
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+
+  ipcMain.handle("memory:embedding-models", async () => {
+    try {
+      return successResponse(getAvailableEmbeddingModels());
     } catch (error) {
       return errorResponse(error);
     }

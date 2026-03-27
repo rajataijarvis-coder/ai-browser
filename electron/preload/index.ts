@@ -129,6 +129,7 @@ const api = {
   memoryDelete: (id: string) => safeInvoke('memory:delete', id),
   memoryClear: () => safeInvoke('memory:clear'),
   memoryStats: () => safeInvoke('memory:stats'),
+  memoryEmbeddingModels: () => safeInvoke('memory:embedding-models'),
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

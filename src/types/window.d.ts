@@ -115,6 +115,7 @@ declare global {
       memoryDelete: (id: string) => Promise<IpcResponse<boolean>>
       memoryClear: () => Promise<IpcResponse<boolean>>
       memoryStats: () => Promise<IpcResponse<{ total: number; auto: number; manual: number }>>
+      memoryEmbeddingModels: () => Promise<IpcResponse<Array<{ value: string; label: string; group: string }>>>
 
       // Generic IPC invoke method
       invoke: <T = any>(channel: string, ...args: any[]) => Promise<T>
