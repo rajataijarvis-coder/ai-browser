@@ -10,7 +10,7 @@ import { TabManager } from "./tab-manager";
 import { AppChatService } from "./app-chat-service";
 import { AppBrowserService } from "./app-browser-service";
 import { SkillService } from "./skill-service";
-import { MemoryService } from "./memory";
+import { MemoryService, buildMemoryTools } from "./memory";
 import type { AgentMcpConfig, McpServiceConfig } from "../models/settings";
 import type { HumanRequestMessage, HumanResponseMessage, HumanInteractionContext } from "../../../src/models/human-interaction";
 
@@ -514,7 +514,9 @@ export class EkoService {
         }
       }
 
-      return await this.eko.execute(taskId);
+      const result = await this.eko.execute(taskId);
+      this.triggerExploreMemoryExtraction(cleanMessage, result);
+      return result;
     } catch (error: unknown) {
       console.error('[EkoService] Run error:', error);
       const errMsg = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -565,7 +567,9 @@ export class EkoService {
         await this.eko.modify(taskId, cleanMessage);
       }
 
-      return await this.eko.execute(taskId);
+      const result = await this.eko.execute(taskId);
+      this.triggerExploreMemoryExtraction(cleanMessage, result);
+      return result;
     } catch (error: unknown) {
       console.error('[EkoService] Modify error:', error);
       const errMsg = error instanceof Error ? error.message : 'Failed to modify task';
@@ -833,7 +837,8 @@ export class EkoService {
       ...this.buildOptionalLlmKeys(),
       globalConfig: this.buildGlobalConfig(),
     };
-    return new ChatAgent(config, chatId);
+    const memoryTools = buildMemoryTools(this.memoryService);
+    return new ChatAgent(config, chatId, undefined, memoryTools);
   }
 
   /** Build agents for ChatAgent (browser + custom) */
@@ -918,6 +923,17 @@ export class EkoService {
     } catch (err) {
       console.error('[EkoService] Memory extraction trigger failed:', err);
     }
+  }
+
+  /** Extract memories from Explore mode prompt + result */
+  private triggerExploreMemoryExtraction(prompt: string, result: EkoResult | null): void {
+    if (!prompt?.trim() || !result?.result) return;
+    const messages = [
+      { role: 'user', content: prompt },
+      { role: 'assistant', content: typeof result.result === 'string' ? result.result : JSON.stringify(result.result) },
+    ];
+    this.memoryService.extractFromConversation(messages)
+      .catch(err => console.error('[EkoService] Explore memory extraction failed:', err));
   }
 
   /** Get memory service instance */
