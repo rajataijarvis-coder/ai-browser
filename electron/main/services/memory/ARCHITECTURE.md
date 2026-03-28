@@ -8,4 +8,5 @@ Cross-session memory system: hybrid search (BM25 + vector cosine) + JSON persist
 - `embedding-provider.ts` — Embedding API calls (OpenAI/Gemini), auto-detects user-configured provider
 - `tokenizer.ts` — Chinese/English text segmentation using Intl.Segmenter with fallback
 - `memory-service.ts` — Core orchestrator: hybrid recall, LLM extraction, background embedding
+- `memory-tools.ts` — DialogueTool implementations (memory_search, memory_save) for ChatAgent
 - `index.ts` — Public module exports
