@@ -113,6 +113,14 @@ export function getDefaultSettings(): AppSettings {
       services: []
     },
     ui: getDefaultUISettings(),
-    network: getDefaultNetworkSettings()
+    network: getDefaultNetworkSettings(),
+    memory: {
+      enabled: true,
+      autoExtract: true,
+      autoRecall: true,
+      maxRecallResults: 5,
+      similarityThreshold: 0.1,
+      retentionDays: 90,
+    }
   };
 }

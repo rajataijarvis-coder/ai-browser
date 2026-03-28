@@ -9,6 +9,8 @@ import { SettingsManager } from "../utils/settings-manager";
 import { TabManager } from "./tab-manager";
 import { AppChatService } from "./app-chat-service";
 import { AppBrowserService } from "./app-browser-service";
+import { SkillService } from "./skill-service";
+import { MemoryService, buildMemoryTools } from "./memory";
 import type { AgentMcpConfig, McpServiceConfig } from "../models/settings";
 import type { HumanRequestMessage, HumanResponseMessage, HumanInteractionContext } from "../../../src/models/human-interaction";
 
@@ -50,12 +52,20 @@ export class EkoService {
 
   // Global services for eko-core
   private appChatService: AppChatService;
+  private skillService: SkillService;
+  private memoryService: MemoryService;
 
   constructor(mainWindow: BrowserWindow, tabManager: TabManager) {
     this.mainWindow = mainWindow;
     this.tabManager = tabManager;
+    this.skillService = new SkillService();
+    this.memoryService = new MemoryService();
     this.appChatService = this.initializeGlobalServices();
     this.initializeEko();
+    // Async init memory (non-blocking)
+    this.memoryService.initialize().catch(err =>
+      console.error('[EkoService] Memory init failed:', err)
+    );
   }
 
   /** Inject ChatService & BrowserService into eko-core global (only once) */
@@ -66,9 +76,15 @@ export class EkoService {
       ekoGlobal.browserService = new AppBrowserService(this.tabManager);
     }
 
+    // Inject SkillService (type will be available after next jarvis-agent release)
+    if (!(ekoGlobal as any).skillService) {
+      (ekoGlobal as any).skillService = this.skillService;
+    }
+
     if (!ekoGlobal.chatService) {
       const searchConfig = SettingsManager.getInstance().getAppSettings().chat.searchProvider;
       const chatService = new AppChatService(searchConfig);
+      chatService.setMemoryService(this.memoryService);
       ekoGlobal.chatService = chatService;
       console.log("[EkoService] Global services injected");
       return chatService;
@@ -355,6 +371,11 @@ export class EkoService {
     });
   }
 
+  /** Expose SkillService for IPC handlers */
+  getSkillService(): SkillService {
+    return this.skillService;
+  }
+
   /**
    * Reload LLM configuration and reinitialize Eko instance
    */
@@ -430,10 +451,10 @@ export class EkoService {
   }
 
   /** Generate workflow and loop confirm until confirmed or cancelled */
-  private async generateAndConfirm(taskId: string, prompt: string): Promise<boolean> {
+  private async generateAndConfirm(taskId: string, prompt: string, contextParams?: Record<string, string>): Promise<boolean> {
     if (!this.eko) return false;
 
-    await this.eko.generate(prompt, taskId);
+    await this.eko.generate(prompt, taskId, contextParams);
 
     // Loop: confirm → regenerate → confirm → ...
     while (true) {
@@ -441,32 +462,61 @@ export class EkoService {
       if (result === 'confirm') return true;
       if (result === 'cancel') return false;
       // regenerate: re-generate and loop back
-      await this.eko.generate(prompt, taskId);
+      await this.eko.generate(prompt, taskId, contextParams);
     }
+  }
+
+  /** Extract <use_skill> tag and load skill instructions for Planner */
+  private async extractSkillContext(message: string): Promise<{ cleanMessage: string; skillContext?: string }> {
+    const match = message.match(/<use_skill\s+name="([^"]+)"\s*\/>/);
+    if (!match) return { cleanMessage: message };
+
+    const skillName = match[1];
+    const content = await this.skillService.loadSkill(skillName);
+    if (!content) return { cleanMessage: message };
+
+    const cleanMessage = message.replace(match[0], '').trim();
+    const skillContext = [
+      `## Skill: ${content.metadata.name}`,
+      content.instructions.trim(),
+      content.resources.length > 0
+        ? `\nAvailable resources (base: ${content.basePath}):\n${content.resources.map(r => `  - ${r}`).join('\n')}`
+        : '',
+    ].filter(Boolean).join('\n');
+
+    return { cleanMessage, skillContext };
   }
 
   async run(message: string, skipConfirm = false): Promise<EkoResult | null> {
     let taskId: string | null = null;
     try {
+      // Extract skill context for Planner if /skill-name was used
+      const { cleanMessage, skillContext } = await this.extractSkillContext(message);
+      const contextParams: Record<string, string> | undefined = skillContext
+        ? { planExtPrompt: skillContext }
+        : undefined;
+
       // Generate unique taskId for this execution
       taskId = randomUUID();
 
       // Create Eko instance with task-specific work directory
       this.eko = this.createEkoForTask(taskId);
       this.runningTaskIds.add(taskId);
-      this.taskPrompts.set(taskId, message);
+      this.taskPrompts.set(taskId, cleanMessage);
       this.thinkingStreamIdMap = null;
 
       if (skipConfirm) {
-        await this.eko.generate(message, taskId);
+        await this.eko.generate(cleanMessage, taskId, contextParams);
       } else {
-        const confirmed = await this.generateAndConfirm(taskId, message);
+        const confirmed = await this.generateAndConfirm(taskId, cleanMessage, contextParams);
         if (!confirmed) {
           return { taskId, success: false, stopReason: 'abort', result: 'User cancelled workflow' };
         }
       }
 
-      return await this.eko.execute(taskId);
+      const result = await this.eko.execute(taskId);
+      this.triggerExploreMemoryExtraction(cleanMessage, result);
+      return result;
     } catch (error: unknown) {
       console.error('[EkoService] Run error:', error);
       const errMsg = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -488,15 +538,23 @@ export class EkoService {
     }
 
     try {
-      // Reset aborted context before modify to avoid stale abort signal
+      // Extract skill context and inject into existing task context
+      const { cleanMessage, skillContext } = await this.extractSkillContext(message);
       const context = this.eko.getTask(taskId);
+
+      // Reset aborted context before modify to avoid stale abort signal
       if (context?.controller?.signal?.aborted) {
         context.reset();
       }
 
-      await this.eko.modify(taskId, message);
+      // Inject skill context into existing task variables
+      if (skillContext && context) {
+        context.variables.set('planExtPrompt', skillContext);
+      }
+
+      await this.eko.modify(taskId, cleanMessage);
       this.runningTaskIds.add(taskId);
-      this.taskPrompts.set(taskId, message);
+      this.taskPrompts.set(taskId, cleanMessage);
 
       // Loop: confirm → regenerate → confirm → ...
       while (true) {
@@ -506,10 +564,12 @@ export class EkoService {
         }
         if (result === 'confirm') break;
         // regenerate
-        await this.eko.modify(taskId, message);
+        await this.eko.modify(taskId, cleanMessage);
       }
 
-      return await this.eko.execute(taskId);
+      const result = await this.eko.execute(taskId);
+      this.triggerExploreMemoryExtraction(cleanMessage, result);
+      return result;
     } catch (error: unknown) {
       console.error('[EkoService] Modify error:', error);
       const errMsg = error instanceof Error ? error.message : 'Failed to modify task';
@@ -777,7 +837,8 @@ export class EkoService {
       ...this.buildOptionalLlmKeys(),
       globalConfig: this.buildGlobalConfig(),
     };
-    return new ChatAgent(config, chatId);
+    const memoryTools = buildMemoryTools(this.memoryService);
+    return new ChatAgent(config, chatId, undefined, memoryTools);
   }
 
   /** Build agents for ChatAgent (browser + custom) */
@@ -829,7 +890,55 @@ export class EkoService {
     } finally {
       this.runningTaskIds.delete(chatId);
       this.chatAbortControllers.delete(chatId);
+      this.triggerMemoryExtraction();
     }
+  }
+
+  /** Trigger async memory extraction from recent chat messages */
+  private triggerMemoryExtraction(): void {
+    if (!this.chatAgent) return;
+    try {
+      const memory = this.chatAgent.getMemory();
+      const ekoMessages = memory.getMessages();
+      if (ekoMessages.length < 2) return;
+
+      // Convert EkoMessage to simple format for extraction
+      const messages = ekoMessages
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => ({
+          role: m.role,
+          content: typeof m.content === 'string'
+            ? m.content
+            : (m.content as Array<{ type: string; text?: string }>)
+                .filter(p => p.type === 'text')
+                .map(p => p.text || '')
+                .join('\n'),
+        }))
+        .filter(m => m.content.trim());
+
+      if (messages.length < 2) return;
+
+      this.memoryService.extractFromConversation(messages)
+        .catch(err => console.error('[EkoService] Memory extraction failed:', err));
+    } catch (err) {
+      console.error('[EkoService] Memory extraction trigger failed:', err);
+    }
+  }
+
+  /** Extract memories from Explore mode prompt + result */
+  private triggerExploreMemoryExtraction(prompt: string, result: EkoResult | null): void {
+    if (!prompt?.trim() || !result?.result) return;
+    const messages = [
+      { role: 'user', content: prompt },
+      { role: 'assistant', content: typeof result.result === 'string' ? result.result : JSON.stringify(result.result) },
+    ];
+    this.memoryService.extractFromConversation(messages)
+      .catch(err => console.error('[EkoService] Explore memory extraction failed:', err));
+  }
+
+  /** Get memory service instance */
+  getMemoryService(): MemoryService {
+    return this.memoryService;
   }
 
   /** Cancel a running chat */
@@ -857,6 +966,9 @@ export class EkoService {
       const chatId = this.chatAgent.getChatContext().getChatId();
       ekoGlobal.chatMap?.delete(chatId);
     }
+
+    // Flush pending memory writes
+    await this.memoryService.flush();
 
     this.rejectAllHumanRequests(new Error('EkoService destroyed'));
     this.eko = null;

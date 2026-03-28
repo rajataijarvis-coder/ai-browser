@@ -112,6 +112,24 @@ const api = {
   // Fetch models from provider API (bypass CORS)
   fetchModels: (providerId: string, apiKey: string, baseUrl: string) =>
     safeInvoke('settings:fetch-models', providerId, apiKey, baseUrl),
+
+  // Skills management APIs
+  skillsList: () => safeInvoke('skills:list'),
+  skillsGetContent: (name: string) => safeInvoke('skills:get-content', name),
+  skillsImportZip: () => safeInvoke('skills:import-zip'),
+  skillsImportFolder: () => safeInvoke('skills:import-folder'),
+  skillsDelete: (name: string) => safeInvoke('skills:delete', name),
+  skillsLoad: (name: string) => safeInvoke('skills:load', name),
+  skillsLoadResource: (name: string, path: string) => safeInvoke('skills:load-resource', name, path),
+
+  // Memory management APIs
+  memoryList: (filter?: { keyword?: string; source?: string }) => safeInvoke('memory:list', filter),
+  memorySearch: (query: string, maxResults?: number) => safeInvoke('memory:search', query, maxResults),
+  memoryAdd: (content: string) => safeInvoke('memory:add', content),
+  memoryDelete: (id: string) => safeInvoke('memory:delete', id),
+  memoryClear: () => safeInvoke('memory:clear'),
+  memoryStats: () => safeInvoke('memory:stats'),
+  memoryEmbeddingModels: () => safeInvoke('memory:embedding-models'),
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

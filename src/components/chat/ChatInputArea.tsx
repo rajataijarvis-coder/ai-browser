@@ -1,4 +1,10 @@
-import React from 'react';
+/**
+ * INPUT: query state, task status, callbacks from main page
+ * OUTPUT: chat input area with send/cancel/pause and skill command popover
+ * POSITION: bottom input area of main chat view
+ */
+
+import React, { useState, useMemo } from 'react';
 import { Input, Button, App } from 'antd';
 import { SendMessage, CancleTask, PauseTask, ResumeTask, MicOn, MicOff } from '@/icons/deepfundai-icons';
 import { useTranslation } from 'react-i18next';
@@ -6,6 +12,7 @@ import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { logger } from '@/utils/logger';
 import { TaskMode } from '@/models';
 import { ModeSwitch } from './ModeSwitch';
+import { SkillCommandPopover } from './SkillCommandPopover';
 
 interface ChatInputAreaProps {
   query: string;
@@ -20,10 +27,7 @@ interface ChatInputAreaProps {
   onPause?: () => void;
 }
 
-/**
- * Chat input area component
- * Handles message input and send/cancel/pause actions
- */
+/** Chat input area with skill command support */
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   query,
   isCurrentTaskRunning,
@@ -38,17 +42,40 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
 }) => {
   const { t } = useTranslation('main');
   const { message: antdMessage } = App.useApp();
+  const [showSkillPopover, setShowSkillPopover] = useState(false);
+
+  // Show popover when query starts with / and no space yet (still typing command)
+  const isTypingCommand = useMemo(() => {
+    return query.startsWith('/') && !query.includes(' ') && query.length > 0;
+  }, [query]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // When popover is open, let it handle navigation keys
+    if (showSkillPopover && isTypingCommand) {
+      if (['ArrowUp', 'ArrowDown', 'Escape'].includes(e.key)) return;
+      if (e.key === 'Enter' && !e.shiftKey) return;
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (isCurrentTaskRunning) return;
       if (!hasValidProvider) {
-        antdMessage.warning(t('no_provider_warning') || 'Please configure AI provider in Settings first');
+        antdMessage.warning(t('no_provider_warning'));
         return;
       }
       onSend();
     }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    onQueryChange(value);
+    setShowSkillPopover(value.startsWith('/'));
+  };
+
+  const handleSkillSelect = (skillName: string) => {
+    onQueryChange(`/${skillName} `);
+    setShowSkillPopover(false);
   };
 
   // Voice input hook
@@ -64,11 +91,19 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
 
   return (
     <div className='h-30 gradient-border relative'>
+      {/* Skill command popover */}
+      <SkillCommandPopover
+        query={query}
+        visible={showSkillPopover && isTypingCommand}
+        onSelect={handleSkillSelect}
+        onClose={() => setShowSkillPopover(false)}
+      />
+
       <Input.TextArea
         value={query}
-        onChange={(e) => onQueryChange(e.target.value)}
+        onChange={handleChange}
         onKeyDown={handleKeyDown}
-        placeholder={t('input_placeholder') || '请输入你的问题...'}
+        placeholder={t('input_placeholder')}
         autoSize={{ minRows: 1, maxRows: 4 }}
         className='!bg-transparent border-none !resize-none !outline-none placeholder-text-04-dark focus:!shadow-none !text-base !pt-4 !pb-4 !pl-3.5 !pr-15'
       />
@@ -124,7 +159,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             type='text'
             onClick={() => {
               if (!hasValidProvider) {
-                antdMessage.warning(t('no_provider_warning') || 'Please configure AI provider in Settings first');
+                antdMessage.warning(t('no_provider_warning'));
                 return;
               }
               onSend();
@@ -135,7 +170,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                 ? '!text-white/40 cursor-not-allowed'
                 : 'cursor-pointer hover:!bg-white/10 !text-white/50 hover:!text-white/80'
               }`}
-            title={!hasValidProvider ? (t('no_provider_tooltip') || 'Configure AI provider first') : ''}
+            title={!hasValidProvider ? t('no_provider_tooltip') : ''}
           >
             <SendMessage />
           </Button>

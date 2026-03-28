@@ -413,3 +413,35 @@ body:not(.dark),
 .thinking-shimmer svg {
   color: rgba(255, 255, 255, 0.5);
 }
+
+/* CodePreview: CSS counter line numbers (always aligned with wrapped lines) */
+.code-preview--line-numbers pre code > span[data-line-number] {
+  counter-increment: line;
+  padding-left: 4em;
+  position: relative;
+}
+
+.code-preview--line-numbers pre code > span[data-line-number]::before {
+  content: counter(line);
+  position: absolute;
+  left: 0;
+  width: 3em;
+  padding-right: 0.8em;
+  text-align: right;
+  color: rgba(255, 255, 255, 0.3);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Word wrap: natural wrapping at word boundaries */
+.code-preview--wrap pre {
+  white-space: pre-wrap !important;
+  overflow-wrap: break-word !important;
+  word-wrap: break-word !important;
+}
+
+.code-preview--wrap pre code,
+.code-preview--wrap pre code span {
+  white-space: pre-wrap !important;
+}

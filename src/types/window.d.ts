@@ -99,6 +99,24 @@ declare global {
       // Fetch models from provider API (bypass CORS)
       fetchModels: (providerId: string, apiKey: string, baseUrl: string) => Promise<IpcResponse<any>>
 
+      // Skills APIs
+      skillsList: () => Promise<IpcResponse<Array<{ name: string; description: string; path: string; source: 'builtin' | 'user'; enabled: boolean; metadata?: Record<string, unknown> }>>>
+      skillsGetContent: (name: string) => Promise<IpcResponse<{ metadata: { name: string; description: string; metadata?: Record<string, unknown> }; instructions: string; resources: string[] }>>
+      skillsImportZip: () => Promise<IpcResponse<{ name: string }>>
+      skillsImportFolder: () => Promise<IpcResponse<{ name: string }>>
+      skillsDelete: (name: string) => Promise<IpcResponse<void>>
+      skillsLoad: (name: string) => Promise<IpcResponse<unknown>>
+      skillsLoadResource: (name: string, path: string) => Promise<IpcResponse<string>>
+
+      // Memory APIs
+      memoryList: (filter?: { keyword?: string; source?: string }) => Promise<IpcResponse<Array<{ id: string; content: string; source: 'auto' | 'manual'; createdAt: number; updatedAt: number; tags: string[] }>>>
+      memorySearch: (query: string, maxResults?: number) => Promise<IpcResponse<Array<{ id: string; content: string; source: 'auto' | 'manual'; createdAt: number; updatedAt: number; tags: string[]; score: number }>>>
+      memoryAdd: (content: string) => Promise<IpcResponse<{ id: string; content: string; source: 'auto' | 'manual' }>>
+      memoryDelete: (id: string) => Promise<IpcResponse<boolean>>
+      memoryClear: () => Promise<IpcResponse<boolean>>
+      memoryStats: () => Promise<IpcResponse<{ total: number; auto: number; manual: number }>>
+      memoryEmbeddingModels: () => Promise<IpcResponse<Array<{ value: string; label: string; group: string }>>>
+
       // Generic IPC invoke method
       invoke: <T = any>(channel: string, ...args: any[]) => Promise<T>
     }

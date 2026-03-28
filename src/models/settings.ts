@@ -199,6 +199,17 @@ export interface NetworkSettings {
   retryAttempts: number; // 0 - 10
 }
 
+export interface MemorySettings {
+  enabled: boolean;
+  autoExtract: boolean;
+  autoRecall: boolean;
+  maxRecallResults: number;
+  similarityThreshold: number;
+  retentionDays: number;
+  memoryModel?: string;
+  embeddingModel?: string;  // e.g. "openai:text-embedding-3-small"
+}
+
 export interface AppSettings {
   providers: Record<string, ProviderConfig>;
   general: GeneralSettings;
@@ -207,6 +218,7 @@ export interface AppSettings {
   mcp: McpSettings;
   ui: UISettings;
   network: NetworkSettings;
+  memory: MemorySettings;
 }
 
 /**

@@ -65,5 +65,6 @@
   "mode_chat": "普通对话",
   "mode_explore": "深度探索",
   "mode_chat_desc": "快速问答、搜索、网页分析",
-  "mode_explore_desc": "复杂任务、多步骤工作流"
+  "mode_explore_desc": "复杂任务、多步骤工作流",
+  "skill_not_found": "未找到该技能"
 }

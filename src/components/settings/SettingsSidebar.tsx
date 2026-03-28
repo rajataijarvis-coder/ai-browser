@@ -4,6 +4,7 @@ import {
   CloudOutlined,
   MessageOutlined,
   RobotOutlined,
+  ThunderboltOutlined,
   ApiOutlined,
   ClockCircleOutlined,
   BulbOutlined,
@@ -65,6 +66,11 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
       icon: <RobotOutlined />
     },
     {
+      id: 'skills',
+      labelKey: 'sidebar.skills',
+      icon: <ThunderboltOutlined />
+    },
+    {
       id: 'mcp',
       labelKey: 'sidebar.mcp',
       icon: <ApiOutlined />
@@ -87,8 +93,7 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
     {
       id: 'memory',
       labelKey: 'sidebar.memory',
-      icon: <BulbOutlined />,
-      comingSoon: true
+      icon: <BulbOutlined />
     },
     {
       id: 'about',

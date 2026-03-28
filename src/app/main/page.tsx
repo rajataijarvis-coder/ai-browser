@@ -318,6 +318,19 @@ export default function main() {
         setTerminateCurrentTaskFn(terminateCurrentTask);
     }, [terminateCurrentTask]);
 
+    // Convert /skill-name command to <use_skill> hint tag
+    const enhanceWithSkill = useCallback(async (text: string): Promise<string | null> => {
+        const skillMatch = text.match(/^\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\s*([\s\S]*)$/);
+        if (!skillMatch) return text;
+
+        const [, skillName, userArgs] = skillMatch;
+        const result = await window.api.skillsList();
+        const exists = result?.data?.some((s: { name: string; enabled: boolean }) => s.name === skillName && s.enabled);
+        if (!exists) return null;
+
+        return `<use_skill name="${skillName}" />\n${userArgs || ''}`.trim();
+    }, []);
+
     // Handle pending message from home page
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -325,7 +338,15 @@ export default function main() {
         const pendingMessage = sessionStorage.getItem('pendingMessage');
         if (pendingMessage) {
             sessionStorage.removeItem('pendingMessage');
-            setTimeout(() => sendMessage(pendingMessage), 100);
+            setTimeout(async () => {
+                const enhanced = await enhanceWithSkill(pendingMessage);
+                if (enhanced === null) {
+                    antdMessage.warning(t('skill_not_found'));
+                    setQuery(pendingMessage);
+                    return;
+                }
+                await sendMessage(enhanced);
+            }, 100);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -458,11 +479,16 @@ export default function main() {
                                     // Save last user message for retry
                                     lastUserMessageRef.current = messageToSend;
 
-                                    // Clear input immediately for better UX
-                                    setQuery('');
+                                    // Convert /skill-name to <use_skill> hint
+                                    const enhanced = await enhanceWithSkill(messageToSend);
+                                    if (enhanced === null) {
+                                        antdMessage.warning(t('skill_not_found'));
+                                        return;
+                                    }
 
-                                    // Send message (async)
-                                    await sendMessage(messageToSend);
+                                    // Clear input after validation passes
+                                    setQuery('');
+                                    await sendMessage(enhanced);
                                 }}
                                 onCancel={handleCancelTask}
                                 isPaused={isPaused}
